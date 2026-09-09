@@ -1,0 +1,6 @@
+{
+  "name": "Pig Farm Management System",
+  "description": "Production-ready agricultural pig farm management system for tracking livestock, breeding, health, feed inventory, sales, expenses, and financial performance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
