@@ -29,7 +29,7 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
 
   // General inventory fields
   const [genName, setGenName] = useState('');
-  const [genCategory, setGenCategory] = useState<InventoryCategory>('Disinfectant');
+  const [genCategory, setGenCategory] = useState<InventoryCategory>('Sanitation');
   const [genLocation, setGenLocation] = useState('Store Room 1');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -207,7 +207,7 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
                   onChange={(e) => setGenCategory(e.target.value as InventoryCategory)}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-stone-300"
                 >
-                  <option value="Disinfectant">Disinfectant & Sanitizer</option>
+                  <option value="Sanitation">Disinfectant & Sanitizer</option>
                   <option value="Feed Equipment">Feed & Water Equipment</option>
                   <option value="Tools">Veterinary & Farm Tools</option>
                   <option value="Consumable">Consumable (Syringes, Tags)</option>

@@ -40,9 +40,9 @@ export const FeedUsageModal: React.FC<FeedUsageModalProps> = ({
       return;
     }
 
-    if (selectedFeed && qtyNum > selectedFeed.current_stock) {
+    if (selectedFeed && qtyNum > (selectedFeed.current_stock ?? 0)) {
       error(
-        `Insufficient inventory! Only ${selectedFeed.current_stock} ${selectedFeed.unit} of ${selectedFeed.name} available.`
+        `Insufficient inventory! Only ${selectedFeed.current_stock ?? 0} ${selectedFeed.unit} of ${selectedFeed.name} available.`
       );
       return;
     }

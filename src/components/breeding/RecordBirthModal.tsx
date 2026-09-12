@@ -81,6 +81,8 @@ export const RecordBirthModal: React.FC<RecordBirthModalProps> = ({
         number_alive: bornAlive,
         number_stillborn: stillborn,
         number_currently_alive: bornAlive,
+        litter_weight: parseFloat(litterWeight) || undefined,
+        pen_location: penLocation.trim() || undefined,
         notes: notes.trim() || undefined,
       });
 

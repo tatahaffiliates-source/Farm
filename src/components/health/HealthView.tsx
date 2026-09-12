@@ -33,14 +33,16 @@ export const HealthView: React.FC<HealthViewProps> = ({
   // Sick pigs count
   const sickPigsCount = pigs.filter((p) => p.status === 'Sick').length;
   // Low stock medicines
-  const lowStockMedicines = medicines.filter((m) => m.current_stock <= m.min_stock_level);
+  const lowStockMedicines = medicines.filter(
+    (m) => (m.current_stock ?? 0) <= (m.min_stock_level ?? 0)
+  );
   // Vaccinations count
   const vaccinationsCount = healthRecords.filter((h) => h.type === 'Vaccination').length;
 
   // Filter logs
   const filteredLogs = healthRecords.filter((h) => {
     const matchesSearch =
-      h.pig_tag.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (h.pig_tag ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       h.condition.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (h.veterinarian && h.veterinarian.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (h.medicine_name && h.medicine_name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -59,10 +61,10 @@ export const HealthView: React.FC<HealthViewProps> = ({
   const handleQuickRestock = (medId: string, addQty: number) => {
     const med = medicines.find((m) => m.id === medId);
     if (!med) return;
-    const newStock = med.current_stock + addQty;
+    const newStock = (med.current_stock ?? 0) + addQty;
     db.updateMedicine(medId, { current_stock: newStock });
     // Also record purchase expense
-    const cost = addQty * med.cost_per_unit;
+    const cost = addQty * (med.cost_per_unit ?? 0);
     if (cost > 0) {
       db.addExpense({
         date: new Date().toISOString().split('T')[0],
@@ -280,7 +282,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-stone-100">
                   {filteredMedicines.map((med) => {
-                    const isLow = med.current_stock <= med.min_stock_level;
+                    const isLow = (med.current_stock ?? 0) <= (med.min_stock_level ?? 0);
                     const isExpired = med.expiry_date && new Date(med.expiry_date) < new Date();
 
                     return (

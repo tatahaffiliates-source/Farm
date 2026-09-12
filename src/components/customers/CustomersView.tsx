@@ -34,7 +34,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   });
 
   const wholesaleCount = customers.filter((c) => c.type === 'Wholesale Buyer').length;
-  const retailCount = customers.filter((c) => c.type === 'Retail Butcher').length;
+  const retailCount = customers.filter((c) => c.type === 'Retail Butcher' || c.type === 'Butcher').length;
   const totalVolume = sales.reduce((sum, s) => sum + s.total_amount, 0);
 
   const filteredCustomers = customers.filter((c) => {

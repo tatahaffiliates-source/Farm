@@ -243,8 +243,8 @@ export const BreedingView: React.FC<BreedingViewProps> = ({
                         <span className="text-stone-400"> / {birth.piglets_born} piglets</span>
                       </td>
                       <td className="py-3 px-4">
-                        {birth.stillborn > 0 ? (
-                          <span className="text-rose-600 font-semibold">{birth.stillborn}</span>
+                        {birth.number_stillborn > 0 ? (
+                          <span className="text-rose-600 font-semibold">{birth.number_stillborn}</span>
                         ) : (
                           <span className="text-stone-400">0</span>
                         )}

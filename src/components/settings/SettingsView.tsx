@@ -17,7 +17,7 @@ interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRefresh }) => {
-  const { role, setRole } = useAuth();
+  const { role, switchUserRole } = useAuth();
   const { success, error } = useToast();
 
   const [activeTab, setActiveTab] = useState<'farm' | 'pens' | 'rbac' | 'system'>('pens');
@@ -33,7 +33,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
   const [isPenModalOpen, setIsPenModalOpen] = useState(false);
   const [editingPen, setEditingPen] = useState<Pen | null>(null);
   const [penName, setPenName] = useState('');
-  const [penType, setPenType] = useState<PenType>('Grower pen');
+  const [penType, setPenType] = useState<PenType>('Grower');
   const [penCapacity, setPenCapacity] = useState('15');
   const [penStatus, setPenStatus] = useState<PenStatus>('Active');
 
@@ -70,7 +70,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
     } else {
       setEditingPen(null);
       setPenName('');
-      setPenType('Grower pen');
+      setPenType('Grower');
       setPenCapacity('15');
       setPenStatus('Active');
     }
@@ -401,7 +401,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
             ].map((item) => (
               <div
                 key={item.r}
-                onClick={() => setRole(item.r)}
+                onClick={() => switchUserRole(item.r)}
                 className={`p-4 rounded-xl border cursor-pointer transition-all ${
                   role === item.r
                     ? 'border-emerald-600 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-600'
@@ -466,7 +466,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
             title="Confirm Database Reset"
             message="This will replace current local database records with the initial verified farm dataset. This action cannot be undone."
             confirmLabel="Reset Database"
-            variant="danger"
+            isDestructive
           />
         </div>
       )}
@@ -498,12 +498,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
                 onChange={(e) => setPenType(e.target.value as PenType)}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-stone-300 text-stone-900"
               >
-                <option value="Farrowing pen">Farrowing Pen (Maternity)</option>
-                <option value="Nursery pen">Nursery Pen (Weaners)</option>
-                <option value="Grower pen">Grower Pen</option>
-                <option value="Finisher pen">Finisher Pen</option>
-                <option value="Boar pen">Boar Pen</option>
-                <option value="Quarantine / Sick bay">Quarantine / Sick Bay</option>
+                <option value="Farrowing">Farrowing Pen (Maternity)</option>
+                <option value="Nursery">Nursery Pen (Weaners)</option>
+                <option value="Grower">Grower Pen</option>
+                <option value="Finisher">Finisher Pen</option>
+                <option value="Breeding">Boar Pen</option>
+                <option value="Isolation">Quarantine / Sick Bay</option>
               </select>
             </FormField>
 

@@ -121,6 +121,8 @@ export interface BirthRecord {
   piglets_born_alive?: number;
   number_stillborn: number;
   number_currently_alive: number;
+  litter_weight?: number;
+  pen_location?: string;
   notes?: string;
   recorded_by?: string;
   created_at: string;
@@ -203,6 +205,13 @@ export interface FeedTransaction {
   type: 'purchase' | 'usage';
   quantity: number; // kg
   cost: number;
+  supplier?: string;
+  unit?: string;
+  unit_price?: number;
+  total_amount?: number;
+  purchase_date?: string;
+  invoice_number?: string;
+  payment_method?: PaymentMethod;
   date: string;
   notes?: string;
   recorded_by?: string;
@@ -234,8 +243,8 @@ export interface Customer {
   phone: string;
   email?: string;
   address?: string;
-  customer_type?: 'Wholesale Buyer' | 'Retailer' | 'Butcher' | 'Individual';
-  type?: 'Wholesale Buyer' | 'Retailer' | 'Butcher' | 'Individual';
+  customer_type?: CustomerType;
+  type?: CustomerType;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -249,6 +258,7 @@ export interface Sale {
   customer_name?: string;
   pig_id?: string;
   pig_code?: string;
+  pig_tag?: string;
   pig_ids?: string[];
   weight: number;
   price_per_kg: number;
@@ -278,7 +288,13 @@ export interface Expense {
 }
 
 export type PaymentMethod = 'Cash' | 'Bank Transfer' | 'UPI' | 'Cheque' | 'Card';
-export type CustomerType = 'Wholesale Buyer' | 'Retailer' | 'Butcher' | 'Individual';
+export type CustomerType =
+  | 'Wholesale Buyer'
+  | 'Retailer'
+  | 'Butcher'
+  | 'Retail Butcher'
+  | 'Breeding Stock Buyer'
+  | 'Individual';
 export type MedicineCategory = 'Vaccine' | 'Antibiotic' | 'Dewormer' | 'Vitamin/Supplement' | 'Antiseptic' | 'Other';
 export type InventoryCategory = 'Equipment' | 'Tool' | 'Bedding' | 'Sanitation' | 'Safety' | 'General';
 export type HealthRecordType = HealthType;

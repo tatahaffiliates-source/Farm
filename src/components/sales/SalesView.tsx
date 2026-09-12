@@ -36,7 +36,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
   const filteredSales = sales.filter((s) => {
     const matchesSearch =
       s.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.pig_tag.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.pig_tag ?? s.pig_code ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.notes && s.notes.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesStatus = selectedStatus === 'All' || s.payment_status === selectedStatus;
@@ -137,7 +137,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
                     <td className="py-3 px-4 font-bold text-stone-900">{sale.customer_name}</td>
                     <td className="py-3 px-4">
                       <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        {sale.pig_tag}
+                        {sale.pig_tag ?? sale.pig_code ?? 'Pig'}
                       </span>
                     </td>
                     <td className="py-3 px-4 font-mono font-medium">{sale.weight} kg</td>

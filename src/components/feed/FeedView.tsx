@@ -33,26 +33,29 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const [isAddInventoryModalOpen, setIsAddInventoryModalOpen] = useState(false);
 
   // Total stock in kg
-  const totalKgStock = feedItems.reduce((sum, f) => sum + (f.unit === 'kg' ? f.current_stock : f.current_stock * 50), 0);
+  const totalKgStock = feedItems.reduce(
+    (sum, f) => sum + (f.unit === 'kg' ? f.current_stock ?? 0 : (f.current_stock ?? 0) * 50),
+    0
+  );
   // Low feed items
-  const lowFeedItems = feedItems.filter((f) => f.current_stock <= f.min_stock_level);
+  const lowFeedItems = feedItems.filter((f) => (f.current_stock ?? 0) <= (f.min_stock_level ?? 0));
   // Total purchase outlay this month
-  const totalPurchaseSpend = feedPurchases.reduce((sum, p) => sum + p.total_amount, 0);
+  const totalPurchaseSpend = feedPurchases.reduce((sum, p) => sum + (p.total_amount ?? p.cost ?? 0), 0);
 
   // Filters
   const filteredFeeds = feedItems.filter((f) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    f.type.toLowerCase().includes(searchQuery.toLowerCase())
+    (f.type ?? '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredPurchases = feedPurchases.filter((p) =>
-    p.feed_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.supplier.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.feed_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.supplier ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.invoice_number && p.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const filteredSupplies = generalInventory.filter((s) =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.name ?? s.item_name).toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -201,7 +204,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-stone-100">
                   {filteredFeeds.map((feed) => {
-                    const isLow = feed.current_stock <= feed.min_stock_level;
+                    const isLow = (feed.current_stock ?? 0) <= (feed.min_stock_level ?? 0);
                     return (
                       <tr key={feed.id} className="hover:bg-stone-50 transition-colors">
                         <td className="py-3 px-4 font-bold text-stone-900">{feed.name}</td>
@@ -211,10 +214,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
                           </span>
                         </td>
                         <td className="py-3 px-4 font-mono font-bold text-stone-900">
-                          {feed.current_stock.toLocaleString('en-IN')} {feed.unit}
+                          {(feed.current_stock ?? 0).toLocaleString('en-IN')} {feed.unit}
                         </td>
                         <td className="py-3 px-4 font-mono text-stone-500">
-                          {feed.min_stock_level.toLocaleString('en-IN')} {feed.unit}
+                          {(feed.min_stock_level ?? 0).toLocaleString('en-IN')} {feed.unit}
                         </td>
                         <td className="py-3 px-4">
                           {isLow ? (
@@ -289,17 +292,17 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 <tbody className="divide-y divide-stone-100">
                   {filteredPurchases.map((purchase) => (
                     <tr key={purchase.id} className="hover:bg-stone-50 transition-colors">
-                      <td className="py-3 px-4 font-mono text-stone-600">{purchase.purchase_date}</td>
-                      <td className="py-3 px-4 font-bold text-stone-900">{purchase.feed_name}</td>
-                      <td className="py-3 px-4 text-stone-700 font-medium">{purchase.supplier}</td>
+                      <td className="py-3 px-4 font-mono text-stone-600">{purchase.purchase_date ?? purchase.date}</td>
+                      <td className="py-3 px-4 font-bold text-stone-900">{purchase.feed_name ?? 'Feed'}</td>
+                      <td className="py-3 px-4 text-stone-700 font-medium">{purchase.supplier ?? '-'}</td>
                       <td className="py-3 px-4 font-mono">
-                        {purchase.quantity} {purchase.unit}
+                        {purchase.quantity} {purchase.unit ?? 'kg'}
                       </td>
-                      <td className="py-3 px-4 font-mono text-stone-600">₹{purchase.unit_price}</td>
+                      <td className="py-3 px-4 font-mono text-stone-600">₹{purchase.unit_price ?? purchase.cost}</td>
                       <td className="py-3 px-4 font-mono font-bold text-stone-900 text-right">
-                        ₹{purchase.total_amount.toLocaleString('en-IN')}
+                        ₹{(purchase.total_amount ?? purchase.cost).toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 px-4 text-stone-600">{purchase.payment_method}</td>
+                      <td className="py-3 px-4 text-stone-600">{purchase.payment_method ?? '-'}</td>
                       <td className="py-3 px-4 font-mono text-xs text-stone-500">
                         {purchase.invoice_number || '-'}
                       </td>
@@ -340,7 +343,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-stone-100">
                   {filteredSupplies.map((item) => {
-                    const isLow = item.quantity <= item.min_stock_level;
+                    const isLow = item.quantity <= (item.min_stock_level ?? 0);
                     return (
                       <tr key={item.id} className="hover:bg-stone-50 transition-colors">
                         <td className="py-3 px-4 font-bold text-stone-900">{item.name}</td>

@@ -55,17 +55,17 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   // Categories breakdown
   const categoryCounts: Record<string, number> = {};
   pigs.forEach((p) => {
-    categoryCounts[p.category] = (categoryCounts[p.category] || 0) + 1;
+    categoryCounts[p.status] = (categoryCounts[p.status] || 0) + 1;
   });
 
   // --- Breeding Analytics ---
   const totalBreedings = breedingRecords.length;
   const pregnantCount = breedingRecords.filter((b) => b.status === 'Pregnant').length;
-  const farrowedCount = breedingRecords.filter((b) => b.status === 'Farrowed').length;
+  const farrowedCount = breedingRecords.filter((b) => b.status === 'Delivered').length;
   const conceptionRate = totalBreedings > 0 ? (((pregnantCount + farrowedCount) / totalBreedings) * 100).toFixed(1) : '0';
   const totalPigletsBorn = birthRecords.reduce((sum, b) => sum + b.piglets_born, 0);
   const totalPigletsAlive = birthRecords.reduce((sum, b) => sum + b.piglets_born_alive, 0);
-  const totalStillborn = birthRecords.reduce((sum, b) => sum + b.stillborn, 0);
+  const totalStillborn = birthRecords.reduce((sum, b) => sum + b.number_stillborn, 0);
   const avgLitterSize = birthRecords.length > 0 ? (totalPigletsAlive / birthRecords.length).toFixed(1) : '0';
 
   // --- Feed Analytics ---
