@@ -4,6 +4,7 @@ import { ToastProvider } from './components/common/Toast';
 import { Sidebar, NavSection } from './components/navigation/Sidebar';
 import { Topbar } from './components/navigation/Topbar';
 import { MobileNav } from './components/navigation/MobileNav';
+import { AuthModal } from './components/auth/AuthModal';
 
 // Views
 import { DashboardView } from './components/dashboard/DashboardView';
@@ -16,6 +17,7 @@ import { ExpensesView } from './components/expenses/ExpensesView';
 import { CustomersView } from './components/customers/CustomersView';
 import { ReportsView } from './components/reports/ReportsView';
 import { SettingsView } from './components/settings/SettingsView';
+import { TeamManagement } from './components/settings/TeamManagement';
 
 // Modals
 import { QuickActionModal } from './components/common/QuickActionModal';
@@ -47,6 +49,18 @@ import {
 } from './types';
 
 function MainAppContent() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-stone-100 flex items-center justify-center text-sm text-stone-600">Loading farm access...</div>;
+  }
+
+  if (!isAuthenticated) return <AuthModal />;
+
+  return <AuthenticatedAppContent />;
+}
+
+function AuthenticatedAppContent() {
   const { role } = useAuth();
   const [currentSection, setCurrentSection] = useState<NavSection>('dashboard');
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -257,8 +271,14 @@ function MainAppContent() {
               />
             )}
 
-            {(currentSection === 'settings' || currentSection === 'users') && (
-              <SettingsView pens={pens} settings={settings} onRefresh={refreshAllData} />
+            {currentSection === 'users' && <TeamManagement />}
+
+            {currentSection === 'settings' && (
+              <SettingsView
+                pens={pens}
+                settings={settings}
+                onRefresh={refreshAllData}
+              />
             )}
           </div>
         </main>

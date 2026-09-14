@@ -34,7 +34,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   onSelectSection,
   onOpenQuickAction,
 }) => {
-  const { user, role, signOut, switchUserRole } = useAuth();
+  const { user, role, signOut } = useAuth();
 
   const allNav: { id: NavSection; label: string; icon: React.ElementType; roles?: UserRole[] }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -46,7 +46,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
     { id: 'expenses', label: 'Expenses', icon: Receipt, roles: ['admin', 'manager'] },
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'reports', label: 'Reports', icon: FileBarChart2, roles: ['admin', 'manager'] },
-    { id: 'users', label: 'Team', icon: ShieldCheck, roles: ['admin'] },
+    { id: 'users', label: 'Team', icon: ShieldCheck, roles: ['admin', 'manager'] },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin', 'manager'] },
   ];
 
@@ -82,25 +82,11 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           </button>
         </div>
 
-        {/* Role switcher inside mobile drawer */}
+        {/* Trusted role indicator */}
         <div className="p-3 bg-stone-950/70 border-b border-stone-800">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] uppercase font-bold text-stone-400">Current Role</span>
             <span className="text-[10px] font-bold uppercase text-emerald-400">{role}</span>
-          </div>
-          <div className="grid grid-cols-3 gap-1">
-            {(['admin', 'manager', 'worker'] as UserRole[]).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => switchUserRole(r)}
-                className={`py-1 text-[11px] font-semibold rounded capitalize ${
-                  role === r ? 'bg-emerald-600 text-white' : 'bg-stone-800 text-stone-400'
-                }`}
-              >
-                {r}
-              </button>
-            ))}
           </div>
         </div>
 

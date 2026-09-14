@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pig, PigWeight, HealthRecord, BreedingRecord, Sale } from '../../types';
 import { Modal } from '../common/Modal';
 import { StatusBadge } from '../common/StatusBadge';
 import { db } from '../../services/db';
+import { createPigFileUrl, listPigFiles, PigFile, uploadPigFile } from '../../services/pigFiles';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../common/Toast';
 import {
   Scale,
   Activity,
@@ -13,6 +16,10 @@ import {
   Layers,
   MapPin,
   TrendingUp,
+  FileText,
+  Upload,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import {
   LineChart,
@@ -41,11 +48,51 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
   onRecordHealth,
   onPigUpdated,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'weight' | 'health' | 'breeding' | 'financial'>(
+  const [activeTab, setActiveTab] = useState<'overview' | 'weight' | 'health' | 'breeding' | 'financial' | 'files'>(
     'overview'
   );
+  const { user, isSupabaseActive } = useAuth();
+  const { success, error } = useToast();
+  const [pigFiles, setPigFiles] = useState<PigFile[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !pig || !isSupabaseActive) return;
+    setIsLoadingFiles(true);
+    listPigFiles(pig.id)
+      .then(setPigFiles)
+      .catch((err: Error) => error(err.message || 'Unable to load pig files.'))
+      .finally(() => setIsLoadingFiles(false));
+  }, [error, isOpen, isSupabaseActive, pig]);
 
   if (!pig) return null;
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !user || !pig) return;
+
+    setIsUploadingFile(true);
+    try {
+      const uploadedFile = await uploadPigFile(file, pig.id, user.farm_id);
+      setPigFiles((current) => [uploadedFile, ...current]);
+      success(`${file.name} uploaded successfully.`);
+    } catch (err: any) {
+      error(err.message || 'Unable to upload file.');
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
+
+  const handleFileDownload = async (file: PigFile) => {
+    try {
+      const url = await createPigFileUrl(file);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err: any) {
+      error(err.message || 'Unable to open file.');
+    }
+  };
 
   // Calculate age in months and days
   const calculateAge = (dobString: string) => {
@@ -146,6 +193,7 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
             { id: 'health', label: `Health Logs (${healthRecords.length})`, icon: Activity },
             { id: 'breeding', label: `Breeding & Parity (${breedingRecords.length})`, icon: HeartHandshake },
             { id: 'financial', label: 'Financial Performance', icon: Receipt },
+            { id: 'files', label: `Files (${pigFiles.length})`, icon: FileText },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -438,6 +486,69 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
                 <p className="text-2xl font-bold font-mono text-emerald-800">
                   ₹{estimatedProfit.toLocaleString('en-IN')}
                 </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'files' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-stone-900">Pig Files</h4>
+                <p className="text-xs text-stone-500">Private photos, documents, and veterinary records for this animal.</p>
+              </div>
+              {isSupabaseActive && (
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 cursor-pointer">
+                  {isUploadingFile ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  {isUploadingFile ? 'Uploading...' : 'Upload file'}
+                  <input
+                    type="file"
+                    className="sr-only"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    disabled={isUploadingFile}
+                    onChange={handleFileUpload}
+                  />
+                </label>
+              )}
+            </div>
+
+            {!isSupabaseActive ? (
+              <p className="text-xs text-stone-500 text-center py-8 border border-dashed border-stone-300 rounded-xl">
+                Connect Supabase to upload and view private pig files.
+              </p>
+            ) : isLoadingFiles ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-xs text-stone-500">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading files...
+              </div>
+            ) : pigFiles.length === 0 ? (
+              <p className="text-xs text-stone-500 text-center py-8 border border-dashed border-stone-300 rounded-xl">
+                No files uploaded for this pig yet.
+              </p>
+            ) : (
+              <div className="divide-y divide-stone-100 rounded-xl border border-stone-200 bg-white">
+                {pigFiles.map((file) => (
+                  <div key={file.id} className="flex items-center justify-between gap-3 p-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="w-4 h-4 text-stone-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-stone-800 truncate">{file.file_name}</p>
+                        <p className="text-[11px] text-stone-500">
+                          {(file.file_size / 1024 / 1024).toFixed(2)} MB · {new Date(file.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleFileDownload(file)}
+                      className="p-1.5 rounded-md text-stone-500 hover:bg-stone-100 hover:text-emerald-700"
+                      title="Open file"
+                      aria-label={`Open ${file.file_name}`}
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pen, FarmSettings, PenType, PenStatus } from '../../types';
+import { Pen, FarmSettings, PenType, PenStatus, UserProfile, UserRole } from '../../types';
 import { PageHeader } from '../common/PageHeader';
 import { StatCard } from '../common/StatCard';
 import { Modal } from '../common/Modal';
@@ -8,19 +8,25 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { db } from '../../services/db';
 import { useToast } from '../common/Toast';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { InviteWorkerModal } from './InviteWorkerModal';
 import { Settings, Home, Shield, RefreshCw, Plus, Users, Check } from 'lucide-react';
 
 interface SettingsViewProps {
   pens: Pen[];
   settings: FarmSettings;
+  section?: 'settings' | 'users';
   onRefresh: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRefresh }) => {
-  const { role, switchUserRole } = useAuth();
+export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, section = 'settings', onRefresh }) => {
+  const { role } = useAuth();
   const { success, error } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'farm' | 'pens' | 'rbac' | 'system'>('pens');
+  const [activeTab, setActiveTab] = useState<'farm' | 'pens' | 'rbac' | 'system' | 'users'>(section === 'users' ? 'users' : 'pens');
+  const [team, setTeam] = useState<UserProfile[]>([]);
+  const [pendingWorkers, setPendingWorkers] = useState<UserProfile[]>([]);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   // Farm profile form state
   const [farmName, setFarmName] = useState(settings.farm_name);
@@ -39,6 +45,52 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
 
   // Reset demo dialog state
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (section === 'users') setActiveTab('users');
+  }, [section]);
+
+  React.useEffect(() => {
+    if (activeTab !== 'users' || !['admin', 'manager'].includes(role) || !supabase) return;
+    supabase.from('profiles').select('id, farm_id, full_name, email, role, status, phone, created_at, updated_at')
+      .order('created_at', { ascending: true })
+      .then(({ data, error: loadError }) => {
+        if (loadError) error(loadError.message);
+        else setTeam((data || []) as UserProfile[]);
+      });
+    if (role === 'admin') {
+      supabase.functions.invoke('manage-user', { body: { action: 'list_pending' } })
+        .then(({ data: pendingData, error: pendingError }) => {
+          if (pendingError) error(pendingError.message);
+          else setPendingWorkers((pendingData?.users || []) as UserProfile[]);
+        });
+    }
+  }, [activeTab, role, error]);
+
+  const handleAssignPendingWorker = async (profile: UserProfile) => {
+    if (!supabase) return;
+    const { data: assignment, error: assignError } = await supabase.functions.invoke('manage-user', {
+      body: { action: 'assign_pending', user_id: profile.id },
+    });
+    if (assignError) {
+      error(assignError.message);
+      return;
+    }
+    setPendingWorkers((current) => current.filter((item) => item.id !== profile.id));
+    setTeam((current) => [...current, { ...profile, farm_id: assignment?.farm_id || profile.farm_id, status: 'active' }]);
+    success(`${profile.full_name} is now assigned to this farm.`);
+  };
+
+  const handleUserStatus = async (profile: UserProfile) => {
+    if (!supabase) return;
+    const nextStatus = profile.status === 'active' ? 'disabled' : 'active';
+    const { error: statusError } = await supabase.functions.invoke('manage-user', {
+      body: { user_id: profile.id, status: nextStatus },
+    });
+    if (statusError) { error(statusError.message); return; }
+    setTeam((current) => current.map((item) => item.id === profile.id ? { ...item, status: nextStatus } : item));
+    success(`Access ${nextStatus === 'active' ? 'restored' : 'disabled'} for ${profile.full_name}.`);
+  };
 
   // Save farm profile
   const handleSaveFarmProfile = (e: React.FormEvent) => {
@@ -176,6 +228,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
           <Shield className="w-4 h-4" />
           Role Permissions (RBAC)
         </button>
+        {['admin', 'manager'].includes(role) && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-semibold border-b-2 -mb-px transition-colors cursor-pointer ${
+              activeTab === 'users' ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-stone-500 hover:text-stone-700'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Manage Users
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setActiveTab('system')}
@@ -375,9 +439,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
       {activeTab === 'rbac' && (
         <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-2xs max-w-3xl space-y-6">
           <div>
-            <h3 className="text-sm font-bold text-stone-900">Active User Role Simulation & RBAC</h3>
+            <h3 className="text-sm font-bold text-stone-900">Your Role & Access</h3>
             <p className="text-xs text-stone-500">
-              The application strictly enforces role-based capabilities across Admin, Manager, and Field Worker.
+              Access is verified from your Supabase profile and enforced again by database policies.
             </p>
           </div>
 
@@ -401,8 +465,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
             ].map((item) => (
               <div
                 key={item.r}
-                onClick={() => switchUserRole(item.r)}
-                className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                className={`p-4 rounded-xl border transition-all ${
                   role === item.r
                     ? 'border-emerald-600 bg-emerald-50/50 shadow-xs ring-1 ring-emerald-600'
                     : 'border-stone-200 bg-white hover:border-stone-300'
@@ -418,7 +481,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
                     role === item.r ? 'bg-emerald-700 text-white' : 'bg-stone-100 text-stone-600'
                   }`}
                 >
-                  {role === item.r ? 'Active Role' : 'Click to Switch'}
+                  {role === item.r ? 'Your active role' : 'Restricted role'}
                 </span>
               </div>
             ))}
@@ -430,6 +493,58 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, onRe
               Row-Level Security (RLS) guarantees that even if UI controls are manipulated, the database layer restricts write privileges on <code>financial_transactions</code>, <code>sales</code>, and <code>system_settings</code> strictly to validated Admin & Manager roles.
             </p>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'users' && ['admin', 'manager'].includes(role) && (
+        <div className="space-y-5">
+          <div>
+            <h3 className="text-sm font-bold text-stone-900">Farm Team</h3>
+            <p className="text-xs text-stone-500">Invite managers and workers. Role assignment is performed by the secure Supabase function.</p>
+          </div>
+          <button type="button" onClick={() => setIsInviteModalOpen(true)} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800">
+            <Plus className="w-4 h-4" /> Invite farm user
+          </button>
+          {pendingWorkers.length > 0 && (
+            <div className="bg-amber-50 rounded-xl border border-amber-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-amber-200">
+                <h4 className="text-sm font-bold text-amber-950">Pending worker accounts</h4>
+                <p className="text-xs text-amber-800 mt-0.5">These users registered publicly and are waiting for a farm assignment.</p>
+              </div>
+              {pendingWorkers.map((member) => (
+                <div key={member.id} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-amber-100 last:border-b-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-stone-900 truncate">{member.full_name}</p>
+                    <p className="text-xs text-stone-600 truncate">{member.email}</p>
+                  </div>
+                  <button type="button" onClick={() => handleAssignPendingWorker(member)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-700 text-white hover:bg-amber-800 shrink-0">
+                    Assign to this farm
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+            {team.map((member) => (
+              <div key={member.id} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-stone-100 last:border-b-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-stone-900 truncate">{member.full_name}</p>
+                  <p className="text-xs text-stone-500 truncate">{member.email}</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs font-semibold capitalize text-stone-600">{member.role}</span>
+                  <span className={`text-xs font-semibold ${member.status === 'active' ? 'text-emerald-700' : 'text-rose-700'}`}>{member.status}</span>
+                  {role === 'admin' && (
+                    <button type="button" onClick={() => handleUserStatus(member)} className="text-xs font-semibold text-stone-600 hover:text-emerald-700">
+                      {member.status === 'active' ? 'Disable' : 'Restore'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {team.length === 0 && <p className="p-5 text-sm text-stone-500">No farm users found.</p>}
+          </div>
+          <InviteWorkerModal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} onSuccess={onRefresh} />
         </div>
       )}
 

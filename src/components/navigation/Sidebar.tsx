@@ -37,7 +37,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelectSection, farmName }) => {
-  const { user, role, signOut, switchUserRole, isSupabaseActive } = useAuth();
+  const { user, role, signOut, isSupabaseActive } = useAuth();
 
   const navItems: { id: NavSection; label: string; icon: React.ElementType; roles?: UserRole[] }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -49,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelectSectio
     { id: 'expenses', label: 'Expenses', icon: Receipt, roles: ['admin', 'manager'] },
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'reports', label: 'Reports', icon: FileBarChart2, roles: ['admin', 'manager'] },
-    { id: 'users', label: 'Team & Roles', icon: ShieldCheck, roles: ['admin'] },
+    { id: 'users', label: 'Team & Roles', icon: ShieldCheck, roles: ['admin', 'manager'] },
     { id: 'settings', label: 'Farm Settings', icon: Settings, roles: ['admin', 'manager'] },
   ];
 
@@ -81,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelectSectio
         </div>
       </div>
 
-      {/* Role Tester Switcher (Fast Persona Preview) */}
+      {/* Authenticated role indicator */}
       <div className="px-4 py-3 bg-stone-950/60 border-b border-stone-800/80">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] uppercase font-bold tracking-wider text-stone-500">Active Role</span>
@@ -96,22 +96,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelectSectio
           >
             {role}
           </span>
-        </div>
-        <div className="grid grid-cols-3 gap-1">
-          {(['admin', 'manager', 'worker'] as UserRole[]).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => switchUserRole(r)}
-              className={`py-1 text-[11px] font-semibold rounded capitalize transition-all cursor-pointer ${
-                role === r
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-stone-800/70 hover:bg-stone-800 text-stone-400'
-              }`}
-            >
-              {r}
-            </button>
-          ))}
         </div>
       </div>
 

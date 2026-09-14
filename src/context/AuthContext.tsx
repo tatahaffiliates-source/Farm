@@ -10,18 +10,52 @@ interface AuthContextType {
   isLoading: boolean;
   isSupabaseActive: boolean;
   signIn: (email: string, password?: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string, role?: UserRole) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
-  switchUserRole: (role: UserRole) => void;
   canAccess: (requiredRoles: UserRole[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function getAuthErrorMessage(error: { message?: string; code?: string; status?: number }): string {
+  if (error.code === 'email_not_confirmed' || error.message?.toLowerCase().includes('email not confirmed')) {
+    return 'Please confirm your email address using the Supabase verification email before signing in.';
+  }
+  if (error.code === 'invalid_credentials' || error.message?.toLowerCase().includes('invalid login credentials')) {
+    return 'The email or password is incorrect. Check both fields and try again.';
+  }
+  if (error.code === 'user_already_exists' || error.message?.toLowerCase().includes('already registered')) {
+    return 'An account with this email already exists. Sign in or use password reset.';
+  }
+  if (error.status === 422 && error.message) return error.message;
+  return error.message || 'Authentication failed. Please try again.';
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const isSupabaseActive = isSupabaseConfigured();
+
+  const loadProfile = async (userId: string): Promise<UserProfile> => {
+    if (!supabase) throw new Error('Supabase is not configured.');
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, farm_id, full_name, email, role, status, phone, created_at, updated_at')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) throw new Error(`Unable to load your farm profile: ${error.message}`);
+    if (!data || !data.farm_id) throw new Error('Your account is not assigned to a farm. Contact the farm administrator.');
+    if (data.status !== 'active') throw new Error('This account has been disabled by the farm administrator.');
+    if (!['admin', 'manager', 'worker'].includes(data.role)) throw new Error('Your account has an invalid role.');
+    return data as UserProfile;
+  };
+
+  const setAuthenticatedProfile = async (userId: string) => {
+    const profile = await loadProfile(userId);
+    setUser(profile);
+    db.setCurrentUser(profile);
+  };
 
   useEffect(() => {
     async function initAuth() {
@@ -30,26 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isSupabaseActive && supabase) {
           const { data } = await supabase.auth.getSession();
           if (data?.session?.user) {
-            // Fetch profile from db
-            const profiles = db.getProfiles();
-            const matched = profiles.find((p) => p.email === data.session?.user.email);
-            if (matched) {
-              setUser(matched);
-              db.setCurrentUser(matched);
-            } else {
-              // Create default profile for Supabase user
-              const newProf: UserProfile = {
-                id: data.session.user.id,
-                farm_id: db.getFarm().id,
-                full_name: data.session.user.user_metadata?.full_name || data.session.user.email?.split('@')[0] || 'User',
-                email: data.session.user.email || 'user@farm.local',
-                role: 'admin',
-                status: 'active',
-                created_at: new Date().toISOString(),
-              };
-              setUser(newProf);
-              db.setCurrentUser(newProf);
-            }
+            await setAuthenticatedProfile(data.session.user.id);
           }
         } else {
           // Restore local authenticated user
@@ -66,6 +81,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     initAuth();
+
+    if (isSupabaseActive && supabase) {
+      const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_OUT' || !session?.user) {
+          setUser(null);
+          return;
+        }
+        try {
+          await setAuthenticatedProfile(session.user.id);
+        } catch (err) {
+          console.error('Unable to load authenticated profile:', err);
+          setUser(null);
+          await supabase?.auth.signOut();
+        }
+      });
+      return () => listener.subscription.unsubscribe();
+    }
   }, [isSupabaseActive]);
 
   const signIn = async (email: string, password?: string) => {
@@ -76,23 +108,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: email.trim(),
           password: password || '',
         });
-        if (error) throw new Error(error.message);
-
-        const profiles = db.getProfiles();
-        let current = profiles.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
-        if (!current) {
-          current = {
-            id: data.user.id,
-            farm_id: db.getFarm().id,
-            full_name: data.user.user_metadata?.full_name || email.split('@')[0],
-            email: data.user.email || email,
-            role: 'admin',
-            status: 'active',
-            created_at: new Date().toISOString(),
-          };
+        if (error) {
+          throw new Error(getAuthErrorMessage(error));
         }
-        setUser(current);
-        db.setCurrentUser(current);
+
+        if (!data.user) throw new Error('Authentication succeeded but no user was returned.');
+        await setAuthenticatedProfile(data.user.id);
       } else {
         // Local auth verification
         const profiles = db.getProfiles();
@@ -111,46 +132,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, role: UserRole = 'worker') => {
-    setIsLoading(true);
-    try {
-      if (isSupabaseActive && supabase) {
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            data: { full_name: fullName, role },
-          },
-        });
-        if (error) throw new Error(error.message);
+  const resetPassword = async (email: string) => {
+    if (!isSupabaseActive || !supabase) throw new Error('Password reset requires Supabase Authentication.');
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}`,
+    });
+    if (error) throw new Error(error.message);
+  };
 
-        const newProf = db.addProfile({
-          farm_id: db.getFarm().id,
-          full_name: fullName,
-          email: email.trim(),
-          role,
-          status: 'active',
-        });
-        setUser(newProf);
-        db.setCurrentUser(newProf);
-      } else {
-        const existing = db.getProfiles().find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
-        if (existing) {
-          throw new Error('An account with this email address already exists.');
-        }
-        const newProf = db.addProfile({
-          farm_id: db.getFarm().id,
-          full_name: fullName,
-          email: email.trim(),
-          role,
-          status: 'active',
-        });
-        setUser(newProf);
-        db.setCurrentUser(newProf);
-      }
-    } finally {
-      setIsLoading(false);
+  const signInWithGoogle = async () => {
+    if (!isSupabaseActive || !supabase) {
+      throw new Error('Google sign-in requires Supabase Authentication.');
     }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) throw new Error(error.message);
   };
 
   const signOut = async () => {
@@ -163,23 +164,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Allows switching active session persona for testing RBAC
-  const switchUserRole = (role: UserRole) => {
-    const profiles = db.getProfiles();
-    let target = profiles.find((p) => p.role === role);
-    if (!target) {
-      target = db.addProfile({
-        farm_id: db.getFarm().id,
-        full_name: `${role.toUpperCase()} User`,
-        email: `${role}@sunlandswine.in`,
-        role,
-        status: 'active',
-      });
-    }
-    setUser(target);
-    db.setCurrentUser(target);
   };
 
   const canAccess = (requiredRoles: UserRole[]): boolean => {
@@ -196,9 +180,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isSupabaseActive,
         signIn,
-        signUp,
+        signInWithGoogle,
+        resetPassword,
         signOut,
-        switchUserRole,
         canAccess,
       }}
     >
