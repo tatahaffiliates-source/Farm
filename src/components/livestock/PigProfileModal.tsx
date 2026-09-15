@@ -56,6 +56,10 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
   const [pigFiles, setPigFiles] = useState<PigFile[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [weights, setWeights] = useState<PigWeight[]>([]);
+  const [healthRecords, setHealthRecords] = useState<HealthRecord[]>([]);
+  const [breedingRecords, setBreedingRecords] = useState<BreedingRecord[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
 
   useEffect(() => {
     if (!isOpen || !pig || !isSupabaseActive) return;
@@ -65,6 +69,28 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
       .catch((err: Error) => error(err.message || 'Unable to load pig files.'))
       .finally(() => setIsLoadingFiles(false));
   }, [error, isOpen, isSupabaseActive, pig]);
+
+  useEffect(() => {
+    if (!isOpen || !pig) return;
+    let isCancelled = false;
+
+    void Promise.all([
+      db.getWeights(pig.id),
+      db.getHealthRecords(pig.id),
+      db.getBreedingRecords(),
+      db.getSales(),
+    ]).then(([loadedWeights, loadedHealth, loadedBreeding, loadedSales]) => {
+      if (isCancelled) return;
+      setWeights(loadedWeights);
+      setHealthRecords(loadedHealth);
+      setBreedingRecords(loadedBreeding.filter((b) => b.sow_id === pig.id || b.boar_id === pig.id));
+      setSales(loadedSales.filter((s) => s.pig_id === pig.id));
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, pig]);
 
   if (!pig) return null;
 
@@ -106,14 +132,7 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
     return `${months} mo ${remainingDays} d`;
   };
 
-  const weights = db.getWeights(pig.id);
-  const healthRecords = db.getHealthRecords(pig.id);
-  const breedingRecords = db
-    .getBreedingRecords()
-    .filter((b) => b.sow_id === pig.id || b.boar_id === pig.id);
-
   // Financial calculations
-  const sales = db.getSales().filter((s) => s.pig_id === pig.id);
   const totalSaleRevenue = sales.reduce((sum, s) => sum + s.total_amount, 0);
   const totalMedicalCost = healthRecords.reduce((sum, h) => sum + (h.cost || 0), 0);
   const purchaseCost = pig.purchase_price || 0;

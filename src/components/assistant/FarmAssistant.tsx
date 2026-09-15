@@ -58,21 +58,33 @@ export const FarmAssistant: React.FC<FarmAssistantProps> = ({ onRefresh }) => {
     setInput('');
     setIsWorking(true);
     setMessages((current) => [...current, { id: `${Date.now()}-q`, from: 'user', text: question }]);
-    await new Promise((resolve) => window.setTimeout(resolve, 180));
-    const result = answerFarmQuestion(question, role);
-    setMessages((current) => [...current, { id: `${Date.now()}-a`, from: 'assistant', text: result.text, action: result.action }]);
-    setPendingAction(result.action);
-    setIsWorking(false);
+    try {
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
+      const result = await answerFarmQuestion(question, role);
+      setMessages((current) => [...current, { id: `${Date.now()}-a`, from: 'assistant', text: result.text, action: result.action }]);
+      setPendingAction(result.action);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to answer that question right now.';
+      setMessages((current) => [...current, { id: `${Date.now()}-e`, from: 'assistant', text: message }]);
+    } finally {
+      setIsWorking(false);
+    }
   };
 
-  const confirmAction = () => {
+  const confirmAction = async () => {
     if (!pendingAction) return;
     setIsWorking(true);
-    const result = executeAssistantAction(pendingAction, role);
-    setMessages((current) => [...current, { id: `${Date.now()}-r`, from: 'assistant', text: result.text }]);
-    setPendingAction(undefined);
-    if (result.refresh) onRefresh();
-    setIsWorking(false);
+    try {
+      const result = await executeAssistantAction(pendingAction, role);
+      setMessages((current) => [...current, { id: `${Date.now()}-r`, from: 'assistant', text: result.text }]);
+      setPendingAction(undefined);
+      if (result.refresh) onRefresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to complete that action.';
+      setMessages((current) => [...current, { id: `${Date.now()}-e`, from: 'assistant', text: message }]);
+    } finally {
+      setIsWorking(false);
+    }
   };
 
   const handleAssistantPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {

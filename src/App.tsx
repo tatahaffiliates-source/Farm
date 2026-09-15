@@ -5,6 +5,7 @@ import { Sidebar, NavSection } from './components/navigation/Sidebar';
 import { Topbar } from './components/navigation/Topbar';
 import { MobileNav } from './components/navigation/MobileNav';
 import { AuthModal } from './components/auth/AuthModal';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Views
 import { DashboardView } from './components/dashboard/DashboardView';
@@ -350,10 +351,12 @@ function AuthenticatedAppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <MainAppContent />
-      </ToastProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ToastProvider>
+          <MainAppContent />
+        </ToastProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

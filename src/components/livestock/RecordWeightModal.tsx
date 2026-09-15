@@ -27,17 +27,26 @@ export const RecordWeightModal: React.FC<RecordWeightModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const pigs = db.getPigs().filter((p) => p.status !== 'Sold' && p.status !== 'Dead');
-    setActivePigs(pigs);
+    let isCancelled = false;
 
-    if (preselectedPigId) {
-      setPigId(preselectedPigId);
-      const match = pigs.find((p) => p.id === preselectedPigId);
-      if (match) setWeight(String(match.current_weight));
-    } else if (pigs.length > 0) {
-      setPigId(pigs[0].id);
-      setWeight(String(pigs[0].current_weight));
-    }
+    void db.getPigs().then((allPigs) => {
+      if (isCancelled) return;
+      const pigs = allPigs.filter((p) => p.status !== 'Sold' && p.status !== 'Dead');
+      setActivePigs(pigs);
+
+      if (preselectedPigId) {
+        setPigId(preselectedPigId);
+        const match = pigs.find((p) => p.id === preselectedPigId);
+        if (match) setWeight(String(match.current_weight));
+      } else if (pigs.length > 0) {
+        setPigId(pigs[0].id);
+        setWeight(String(pigs[0].current_weight));
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, preselectedPigId]);
 
   const selectedPig = activePigs.find((p) => p.id === pigId);
@@ -48,7 +57,7 @@ export const RecordWeightModal: React.FC<RecordWeightModalProps> = ({
     if (match) setWeight(String(match.current_weight));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const weightNum = parseFloat(weight);
     if (isNaN(weightNum) || weightNum <= 0) {
@@ -62,7 +71,7 @@ export const RecordWeightModal: React.FC<RecordWeightModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      db.addWeightRecord({
+      await db.addWeightRecord({
         pig_id: pigId,
         weight_date: weightDate,
         weight: weightNum,

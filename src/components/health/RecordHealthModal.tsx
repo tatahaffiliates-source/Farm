@@ -38,23 +38,31 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const allPigs = db.getPigs().filter((p) => p.status !== 'Sold' && p.status !== 'Dead');
-    const allMeds = db.getMedicines();
-    setPigs(allPigs);
-    setMedicines(allMeds);
+    let isCancelled = false;
 
-    if (preselectedPigId) {
-      setPigId(preselectedPigId);
-    } else if (allPigs.length > 0) {
-      setPigId(allPigs[0].id);
-    }
+    void Promise.all([db.getPigs(), db.getMedicines()]).then(([allPigsData, allMedsData]) => {
+      if (isCancelled) return;
+      const allPigs = allPigsData.filter((p) => p.status !== 'Sold' && p.status !== 'Dead');
+      setPigs(allPigs);
+      setMedicines(allMedsData);
 
-    if (allMeds.length > 0) {
-      setMedicineId(allMeds[0].id);
-    }
+      if (preselectedPigId) {
+        setPigId(preselectedPigId);
+      } else if (allPigs.length > 0) {
+        setPigId(allPigs[0].id);
+      }
+
+      if (allMedsData.length > 0) {
+        setMedicineId(allMedsData[0].id);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, preselectedPigId]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pigId) {
       error('Please select a pig.');
@@ -72,7 +80,7 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
 
       const costNum = parseFloat(cost) || 0;
 
-      db.addHealthRecord({
+      await db.addHealthRecord({
         pig_id: pigId,
         pig_tag: selectedPig?.pig_id || 'Pig',
         record_date: recordDate,
@@ -90,12 +98,12 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
 
       // Deduct medicine inventory if selected
       if (selectedMed && deductStockQty > 0) {
-        db.deductMedicineStock(selectedMed.id, deductStockQty);
+        await db.deductMedicineStock(selectedMed.id, deductStockQty);
       }
 
       // If cost > 0, optionally record in farm expenses under 'Veterinary'
       if (costNum > 0) {
-        db.addExpense({
+        await db.addExpense({
           date: recordDate,
           expense_date: recordDate,
           category: type === 'Vaccination' ? 'Vaccination' : 'Veterinary',
@@ -108,11 +116,11 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
 
       // Update pig status if sick or died
       if (outcome === 'Under Treatment') {
-        db.updatePig(pigId, { status: 'Sick' });
+        await db.updatePig(pigId, { status: 'Sick' });
       } else if (outcome === 'Died') {
-        db.updatePig(pigId, { status: 'Dead' });
+        await db.updatePig(pigId, { status: 'Dead' });
       } else if (selectedPig?.status === 'Sick' && outcome === 'Resolved') {
-        db.updatePig(pigId, { status: 'Active' });
+        await db.updatePig(pigId, { status: 'Active' });
       }
 
       success(`Health log saved for ${selectedPig?.pig_id}.`);
