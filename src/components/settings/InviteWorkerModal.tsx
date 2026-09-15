@@ -44,7 +44,14 @@ export const InviteWorkerModal: React.FC<InviteWorkerModalProps> = ({ isOpen, on
           phone: phone.trim() || undefined,
         },
       });
-      if (invokeError) throw new Error(invokeError.message);
+      if (invokeError) {
+        const isFetchError = invokeError.name === 'FunctionsFetchError';
+        throw new Error(
+          isFetchError
+            ? 'Could not reach the invite-worker Edge Function. Make sure it is deployed and that "Enforce JWT Verification" is turned off for it (the browser CORS preflight is rejected while JWT verification is enabled).'
+            : invokeError.message,
+        );
+      }
       if (data?.error) throw new Error(data.error);
       setSuccessMsg(`Invitation sent to ${email.trim()}.`);
       setEmail('');

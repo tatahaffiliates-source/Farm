@@ -1,0 +1,18 @@
+# Supabase project configuration
+# Project ref: idtnudjmhlbqdpoxlxig
+
+project_id = "idtnudjmhlbqdpoxlxig"
+
+[functions.invite-worker]
+# The function authenticates the caller itself via auth.getUser().
+# Gateway JWT verification must be disabled so the browser CORS preflight
+# (OPTIONS, which never carries an Authorization header) is answered with 200
+# instead of being rejected with a non-2xx status.
+verify_jwt = false
+# Resolves the bare "@supabase/supabase-js" import at deploy/run time.
+import_map = "./functions/import_map.json"
+
+[functions.manage-user]
+# Same as above: the function verifies the caller's access token internally.
+verify_jwt = false
+import_map = "./functions/import_map.json"
