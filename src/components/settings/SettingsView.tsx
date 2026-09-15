@@ -29,11 +29,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   // Farm profile form state
-  const [farmName, setFarmName] = useState(settings.farm_name);
-  const [ownerName, setOwnerName] = useState(settings.owner_name);
-  const [phone, setPhone] = useState(settings.phone);
-  const [email, setEmail] = useState(settings.email);
-  const [address, setAddress] = useState(settings.address);
+const [farmName, setFarmName] = useState(settings.farm_name || '');
+const [ownerName, setOwnerName] = useState(settings.owner_name || '');
+const [phone, setPhone] = useState(settings.phone || '');
+const [email, setEmail] = useState(settings.email || '');
+const [address, setAddress] = useState(settings.address || '');
 
   // Pen management modal state
   const [isPenModalOpen, setIsPenModalOpen] = useState(false);
@@ -42,9 +42,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
   const [penType, setPenType] = useState<PenType>('Grower');
   const [penCapacity, setPenCapacity] = useState('15');
   const [penStatus, setPenStatus] = useState<PenStatus>('Active');
-
-  // Reset demo dialog state
-  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   React.useEffect(() => {
     if (section === 'users') setActiveTab('users');
@@ -93,10 +90,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
   };
 
   // Save farm profile
-  const handleSaveFarmProfile = (e: React.FormEvent) => {
+  const handleSaveFarmProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      db.updateSettings({
+      await db.updateSettings({
         name: farmName.trim(),
         farm_name: farmName.trim(),
         owner_name: ownerName.trim(),
@@ -129,7 +126,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
     setIsPenModalOpen(true);
   };
 
-  const handleSavePen = (e: React.FormEvent) => {
+  const handleSavePen = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!penName.trim()) {
       error('Please enter pen identification name.');
@@ -138,7 +135,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
     try {
       const capNum = parseInt(penCapacity, 10) || 10;
       if (editingPen) {
-        db.updatePen(editingPen.id, {
+        await db.updatePen(editingPen.id, {
           name: penName.trim(),
           type: penType,
           capacity: capNum,
@@ -146,7 +143,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
         });
         success(`Pen ${penName} updated.`);
       } else {
-        db.addPen({
+        await db.addPen({
           name: penName.trim(),
           type: penType,
           capacity: capNum,
@@ -162,23 +159,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
     }
   };
 
-  const handleDeletePen = (penId: string, penName: string) => {
+  const handleDeletePen = async (penId: string, penName: string) => {
     if (window.confirm(`Are you sure you want to remove pen "${penName}"?`)) {
-      db.deletePen(penId);
-      success(`Pen "${penName}" deleted.`);
-      onRefresh();
-    }
-  };
-
-  // Handle Demo Data Reset
-  const handleResetDemoData = () => {
-    try {
-      db.resetToInitialDemoData();
-      success('Database successfully reset to initial production demo dataset.');
-      setIsResetConfirmOpen(false);
-      onRefresh();
-    } catch (err: any) {
-      error(err.message || 'Failed to reset database.');
+      try {
+        await db.deletePen(penId);
+        success(`Pen "${penName}" deleted.`);
+        onRefresh();
+      } catch (err: any) {
+        error(err.message || 'Failed to delete pen.');
+      }
     }
   };
 
@@ -240,18 +229,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
             Manage Users
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setActiveTab('system')}
-          className={`flex items-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-semibold border-b-2 -mb-px transition-colors cursor-pointer ${
-            activeTab === 'system'
-              ? 'border-emerald-700 text-emerald-800'
-              : 'border-transparent text-stone-500 hover:text-stone-700'
-          }`}
-        >
-          <RefreshCw className="w-4 h-4" />
-          Data & Diagnostics
-        </button>
       </div>
 
       {/* Tab 1: Swine Housing & Pens */}
@@ -545,44 +522,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
             {team.length === 0 && <p className="p-5 text-sm text-stone-500">No farm users found.</p>}
           </div>
           <InviteWorkerModal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} onSuccess={onRefresh} />
-        </div>
-      )}
-
-      {/* Tab 4: System & Reset */}
-      {activeTab === 'system' && (
-        <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-2xs max-w-2xl space-y-6">
-          <div>
-            <h3 className="text-sm font-bold text-stone-900">Database Administration & Demo Data</h3>
-            <p className="text-xs text-stone-500">
-              Manage your local storage schema and test data state.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/60 space-y-3">
-            <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
-              Reload Initial Production MVP Demo Dataset
-            </h4>
-            <p className="text-xs text-amber-800 leading-relaxed">
-              If you have added test records or want to restore the complete, curated realistic swine dataset (18 active pigs, 5 pregnant sows, 6 feed rations, 8 medicines, 8 sales, and expenses), click below.
-            </p>
-            <button
-              type="button"
-              onClick={() => setIsResetConfirmOpen(true)}
-              className="px-4 py-2 text-xs font-bold rounded-lg bg-amber-700 hover:bg-amber-800 text-white shadow-2xs cursor-pointer"
-            >
-              Reset to Clean Demo State
-            </button>
-          </div>
-
-          <ConfirmDialog
-            isOpen={isResetConfirmOpen}
-            onClose={() => setIsResetConfirmOpen(false)}
-            onConfirm={handleResetDemoData}
-            title="Confirm Database Reset"
-            message="This will replace current local database records with the initial verified farm dataset. This action cannot be undone."
-            confirmLabel="Reset Database"
-            isDestructive
-          />
         </div>
       )}
 
