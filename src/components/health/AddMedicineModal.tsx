@@ -26,7 +26,7 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
   const [costPerUnit, setCostPerUnit] = useState('350');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       error('Please enter medicine name.');
@@ -39,7 +39,7 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
       const min = parseFloat(minStock) || 0;
       const cost = parseFloat(costPerUnit) || 0;
 
-      db.addMedicine({
+      await db.addMedicine({
         name: name.trim(),
         category,
         unit: unit.trim(),

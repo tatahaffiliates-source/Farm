@@ -23,7 +23,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
   pigs,
   onRefresh,
 }) => {
-  const { success } = useToast();
+  const { success, error } = useToast();
   const [activeTab, setActiveTab] = useState<'logs' | 'medicines'>('logs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('All');
@@ -58,26 +58,30 @@ export const HealthView: React.FC<HealthViewProps> = ({
     m.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleQuickRestock = (medId: string, addQty: number) => {
+  const handleQuickRestock = async (medId: string, addQty: number) => {
     const med = medicines.find((m) => m.id === medId);
     if (!med) return;
     const newStock = (med.current_stock ?? 0) + addQty;
-    db.updateMedicine(medId, { current_stock: newStock });
-    // Also record purchase expense
-    const cost = addQty * (med.cost_per_unit ?? 0);
-    if (cost > 0) {
-      db.addExpense({
-        date: new Date().toISOString().split('T')[0],
-        expense_date: new Date().toISOString().split('T')[0],
-        category: 'Medicine',
-        amount: cost,
-        description: `Restocked ${addQty} ${med.unit} of ${med.name}`,
-        payee: 'Agri-Vet Supplies',
-        payment_method: 'UPI',
-      });
+    try {
+      await db.updateMedicine(medId, { current_stock: newStock });
+      // Also record purchase expense
+      const cost = addQty * (med.cost_per_unit ?? 0);
+      if (cost > 0) {
+        await db.addExpense({
+          date: new Date().toISOString().split('T')[0],
+          expense_date: new Date().toISOString().split('T')[0],
+          category: 'Medicine',
+          amount: cost,
+          description: `Restocked ${addQty} ${med.unit} of ${med.name}`,
+          payee: 'Agri-Vet Supplies',
+          payment_method: 'UPI',
+        });
+      }
+      success(`Restocked ${addQty} ${med.unit} of ${med.name}.`);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Failed to restock medicine.');
     }
-    success(`Restocked ${addQty} ${med.unit} of ${med.name}.`);
-    onRefresh();
   };
 
   return (
