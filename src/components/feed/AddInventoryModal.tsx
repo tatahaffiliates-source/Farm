@@ -176,7 +176,7 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
                 />
               </FormField>
 
-              <FormField label="Cost / Unit (₹)">
+              <FormField label="Cost / Unit ($)">
                 <input
                   type="number"
                   min="0"

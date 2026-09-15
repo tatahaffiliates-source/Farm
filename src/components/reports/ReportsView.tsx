@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pig, BreedingRecord, BirthRecord, FeedItem, FeedPurchase, Sale, Expense } from '../../types';
 import { PageHeader } from '../common/PageHeader';
 import { StatCard } from '../common/StatCard';
-import { BarChart3, TrendingUp, Download, PieChart, IndianRupee, Wheat, Baby, Activity } from 'lucide-react';
+import { BarChart3, TrendingUp, Download, PieChart, DollarSign, Wheat, Baby, Activity } from 'lucide-react';
 import { useToast } from '../common/Toast';
 
 interface ReportsViewProps {
@@ -147,7 +147,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               : 'border-transparent text-stone-500 hover:text-stone-700'
           }`}
         >
-          <IndianRupee className="w-4 h-4" />
+          <DollarSign className="w-4 h-4" />
           Financial P&L Statement
         </button>
         <button
@@ -194,22 +194,22 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
               title="Gross Farm Revenue"
-              value={`₹${totalRevenue.toLocaleString('en-IN')}`}
+              value={`$${totalRevenue.toLocaleString('en-US')}`}
               icon={TrendingUp}
               variant="emerald"
               subtitle="From livestock sales"
             />
             <StatCard
               title="Total Farm Expenses"
-              value={`₹${totalExpenses.toLocaleString('en-IN')}`}
+              value={`$${totalExpenses.toLocaleString('en-US')}`}
               icon={PieChart}
               variant="rose"
               subtitle="Operating costs"
             />
             <StatCard
               title="Net Farm Profit"
-              value={`₹${netProfit.toLocaleString('en-IN')}`}
-              icon={IndianRupee}
+              value={`$${netProfit.toLocaleString('en-US')}`}
+              icon={DollarSign}
               variant={netProfit >= 0 ? 'emerald' : 'rose'}
               subtitle={netProfit >= 0 ? 'Net positive return' : 'Operating loss'}
             />
@@ -234,7 +234,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <div className="flex justify-between text-xs">
                         <span className="font-medium text-stone-700">{cat}</span>
                         <span className="font-mono font-bold text-stone-900">
-                          ₹{amt.toLocaleString('en-IN')} ({pct.toFixed(1)}%)
+                          ${amt.toLocaleString('en-US')} ({pct.toFixed(1)}%)
                         </span>
                       </div>
                       <div className="h-2 rounded-full bg-stone-100 overflow-hidden">
@@ -256,13 +256,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <div className="flex justify-between py-2 border-b border-stone-100">
                   <span className="text-stone-600">Average Revenue per Pig Sold:</span>
                   <span className="font-mono font-bold text-stone-900">
-                    ₹{sales.length > 0 ? (totalRevenue / sales.length).toFixed(0) : '0'}
+                    ${sales.length > 0 ? (totalRevenue / sales.length).toFixed(0) : '0'}
                   </span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-stone-100">
                   <span className="text-stone-600">Average Market Rate Realized:</span>
                   <span className="font-mono font-bold text-stone-900">
-                    ₹{totalWeightSold > 0 ? (totalRevenue / totalWeightSold).toFixed(1) : '0'} / kg
+                    ${totalWeightSold > 0 ? (totalRevenue / totalWeightSold).toFixed(1) : '0'} / kg
                   </span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-stone-100">
@@ -437,21 +437,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
               title="Feed Procured"
-              value={`${totalFeedProcured.toLocaleString('en-IN')} kg`}
+              value={`${totalFeedProcured.toLocaleString('en-US')} kg`}
               icon={Wheat}
               variant="emerald"
               subtitle="Total commercial rations"
             />
             <StatCard
               title="Total Feed Expenditure"
-              value={`₹${totalFeedCost.toLocaleString('en-IN')}`}
-              icon={IndianRupee}
+              value={`$${totalFeedCost.toLocaleString('en-US')}`}
+              icon={DollarSign}
               variant="amber"
               subtitle="Purchased feed cost"
             />
             <StatCard
               title="Avg Feed Cost / kg"
-              value={`₹${totalFeedProcured > 0 ? (totalFeedCost / totalFeedProcured).toFixed(1) : '32'} / kg`}
+              value={`$${totalFeedProcured > 0 ? (totalFeedCost / totalFeedProcured).toFixed(1) : '32'} / kg`}
               icon={Wheat}
               variant="blue"
               subtitle="Blended procurement price"

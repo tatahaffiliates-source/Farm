@@ -89,30 +89,31 @@ function AuthenticatedAppContent() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [pens, setPens] = useState<Pen[]>([]);
-  const [settings, setSettings] = useState<FarmSettings>(db.getSettings());
-  const [stats, setStats] = useState<FarmDashboardStats>(db.getDashboardStats());
+  const [settings, setSettings] = useState<FarmSettings | null>(null);
+  const [stats, setStats] = useState<FarmDashboardStats | null>(null);
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
   // Data reload callback
-  const refreshAllData = useCallback(() => {
-    setPigs(db.getPigs());
-    setBreedingRecords(db.getBreedingRecords());
-    setBirthRecords(db.getBirthRecords());
-    setHealthRecords(db.getHealthRecords());
-    setMedicines(db.getMedicines());
-    setFeedItems(db.getFeedItems());
-    setFeedPurchases(db.getFeedPurchases());
-    setGeneralInventory(db.getGeneralInventory());
-    setSales(db.getSales());
-    setExpenses(db.getExpenses());
-    setCustomers(db.getCustomers());
-    setPens(db.getPens());
-    setSettings(db.getSettings());
-    setStats(db.getDashboardStats());
+  const refreshAllData = useCallback(async () => {
+    setIsDataLoading(true);
+    try {
+      const [farm, loadedPigs, loadedBreeding, loadedBirths, loadedHealth, loadedMedicines, loadedFeeds, loadedPurchases, loadedInventory, loadedSales, loadedExpenses, loadedCustomers, loadedPens] = await Promise.all([
+        db.getSettings(), db.getPigs(), db.getBreedingRecords(), db.getBirthRecords(), db.getHealthRecords(), db.getMedicines(), db.getFeedItems(), db.getFeedPurchases(), db.getGeneralInventory(), db.getSales(), db.getExpenses(), db.getCustomers(), db.getPens(),
+      ]);
+      setSettings(farm); setPigs(loadedPigs); setBreedingRecords(loadedBreeding); setBirthRecords(loadedBirths); setHealthRecords(loadedHealth); setMedicines(loadedMedicines); setFeedItems(loadedFeeds); setFeedPurchases(loadedPurchases); setGeneralInventory(loadedInventory); setSales(loadedSales); setExpenses(loadedExpenses); setCustomers(loadedCustomers); setPens(loadedPens);
+      setStats(db.getDashboardStats({ pigs: loadedPigs, sales: loadedSales, expenses: loadedExpenses, feeds: loadedFeeds, medicines: loadedMedicines, breeding: loadedBreeding }));
+    } finally {
+      setIsDataLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    refreshAllData();
+    void refreshAllData();
   }, [refreshAllData]);
+
+  if (isDataLoading || !settings || !stats) {
+    return <div className="min-h-screen bg-stone-100 flex items-center justify-center text-sm text-stone-600">Loading farm data...</div>;
+  }
 
   // Handle Quick Action Trigger
   const handleOpenQuickAction = (actionType?: string, targetPigId?: string) => {
@@ -207,7 +208,7 @@ function AuthenticatedAppContent() {
             {currentSection === 'livestock' && (
               <LivestockView
                 pigs={pigs}
-                onRefresh={refreshAllData}
+                onRefresh={() => void refreshAllData()}
                 onOpenQuickAction={handleOpenQuickAction}
               />
             )}
@@ -216,7 +217,7 @@ function AuthenticatedAppContent() {
               <BreedingView
                 breedingRecords={breedingRecords}
                 birthRecords={birthRecords}
-                onRefresh={refreshAllData}
+                onRefresh={() => void refreshAllData()}
               />
             )}
 
@@ -225,7 +226,7 @@ function AuthenticatedAppContent() {
                 healthRecords={healthRecords}
                 medicines={medicines}
                 pigs={pigs}
-                onRefresh={refreshAllData}
+                onRefresh={() => void refreshAllData()}
               />
             )}
 

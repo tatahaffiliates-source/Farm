@@ -32,11 +32,10 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const allPigs = db.getPigs();
-    const femalePigs = allPigs.filter((p) => p.sex === 'Female' && p.status !== 'Sold' && p.status !== 'Dead');
-    const malePigs = allPigs.filter((p) => p.sex === 'Male' && p.status !== 'Sold' && p.status !== 'Dead');
-    setSows(femalePigs);
-    setBoars(malePigs);
+    void db.getPigs().then((allPigs) => {
+      const femalePigs = allPigs.filter((p) => p.sex === 'Female' && p.status !== 'Sold' && p.status !== 'Dead');
+      const malePigs = allPigs.filter((p) => p.sex === 'Male' && p.status !== 'Sold' && p.status !== 'Dead');
+      setSows(femalePigs); setBoars(malePigs);
 
     if (preselectedSowId) {
       setSowId(preselectedSowId);
@@ -44,9 +43,8 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
       setSowId(femalePigs[0].id);
     }
 
-    if (malePigs.length > 0) {
-      setBoarId(malePigs[0].id);
-    }
+      if (malePigs.length > 0) setBoarId(malePigs[0].id);
+    }).catch((err) => error(err.message));
   }, [isOpen, preselectedSowId]);
 
   // Auto-calculate 114 days gestation (3 months, 3 weeks, 3 days)
@@ -58,7 +56,7 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
     }
   }, [matingDate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sowId) {
       error('Please select a sow.');
@@ -70,7 +68,7 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
       const selectedSow = sows.find((s) => s.id === sowId);
       const selectedBoar = boars.find((b) => b.id === boarId);
 
-      db.addBreedingRecord({
+      await db.addBreedingRecord({
         sow_id: sowId,
         sow_tag: selectedSow?.pig_id || 'Sow',
         boar_id: boarId || undefined,
@@ -84,7 +82,7 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
 
       // Update sow's status to 'Pregnant' if status is Pregnant
       if (status === 'Pregnant') {
-        db.updatePig(sowId, { status: 'Pregnant' });
+        await db.updatePig(sowId, { status: 'Pregnant' });
       }
 
       success(`Breeding schedule recorded. Expected farrowing: ${expectedDate}`);

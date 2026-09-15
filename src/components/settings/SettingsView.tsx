@@ -411,7 +411,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 p-3.5 bg-stone-50 rounded-xl border border-stone-200 text-xs">
               <div>
                 <span className="text-stone-500 font-medium">Standard Currency</span>
-                <p className="font-bold text-stone-900 mt-0.5">INR (₹)</p>
+                <p className="font-bold text-stone-900 mt-0.5">USD ($)</p>
               </div>
               <div>
                 <span className="text-stone-500 font-medium">Swine Weight Metric</span>

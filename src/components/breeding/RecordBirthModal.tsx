@@ -34,16 +34,15 @@ export const RecordBirthModal: React.FC<RecordBirthModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const allPigs = db.getPigs();
-    const femalePigs = allPigs.filter((p) => p.sex === 'Female');
-    setSows(femalePigs);
+    void db.getPigs().then((allPigs) => {
+      const femalePigs = allPigs.filter((p) => p.sex === 'Female');
+      setSows(femalePigs);
 
-    if (breedingRecord) {
-      setSowId(breedingRecord.sow_id);
-      setBoarTag(breedingRecord.boar_tag || '');
-    } else if (femalePigs.length > 0) {
-      setSowId(femalePigs[0].id);
-    }
+      if (breedingRecord) {
+        setSowId(breedingRecord.sow_id);
+        setBoarTag(breedingRecord.boar_tag || '');
+      } else if (femalePigs.length > 0) setSowId(femalePigs[0].id);
+    }).catch((err) => error(err.message));
   }, [isOpen, breedingRecord]);
 
   const handleBornChange = (total: number) => {
@@ -53,7 +52,7 @@ export const RecordBirthModal: React.FC<RecordBirthModalProps> = ({
     setBornAlive(alive);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sowId) {
       error('Please select the mother sow.');
@@ -70,7 +69,7 @@ export const RecordBirthModal: React.FC<RecordBirthModalProps> = ({
       const selectedSow = sows.find((s) => s.id === sowId);
       const sowTag = selectedSow?.pig_id || 'Sow';
 
-      const birth = db.addBirthRecord({
+      await db.addBirthRecord({
         sow_id: sowId,
         sow_tag: sowTag,
         boar_tag: boarTag || undefined,
@@ -88,28 +87,28 @@ export const RecordBirthModal: React.FC<RecordBirthModalProps> = ({
 
       // Update breeding record status if linked
       if (breedingRecord) {
-        db.updateBreedingRecord(breedingRecord.id, {
+        await db.updateBreedingRecord(breedingRecord.id, {
           status: 'Delivered',
           actual_delivery_date: birthDate,
         });
       }
 
       // Update sow status back to active & location to maternity pen
-      db.updatePig(sowId, {
+      await db.updatePig(sowId, {
         status: 'Active',
         pen_location: penLocation,
       });
 
       // Optionally auto register each piglet in the Livestock table!
       if (autoRegister && bornAlive > 0) {
-        const existingPigs = db.getPigs();
+        const existingPigs = await db.getPigs();
         const baseNum = existingPigs.length + 101;
         const avgWeight = (parseFloat(litterWeight) || bornAlive * 1.3) / bornAlive;
 
         for (let i = 0; i < bornAlive; i++) {
           const pigletId = `P-0${baseNum + i}`;
           const pigletSex = i % 2 === 0 ? 'Female' : 'Male';
-          db.addPig({
+          await db.addPig({
             pig_id: pigletId,
             tag_number: `TAG-${baseNum + i}`,
             breed: selectedSow?.breed || 'Large White Yorkshire',

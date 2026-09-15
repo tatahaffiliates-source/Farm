@@ -52,7 +52,7 @@ export const RecordExpenseModal: React.FC<RecordExpenseModalProps> = ({
         receipt_number: receiptNumber.trim() || undefined,
       });
 
-      success(`Expense of ₹${amountNum.toLocaleString('en-IN')} logged under ${category}.`);
+      success(`Expense of $${amountNum.toLocaleString('en-US')} logged under ${category}.`);
       onSuccess();
       onClose();
       // Reset
@@ -111,7 +111,7 @@ export const RecordExpenseModal: React.FC<RecordExpenseModalProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <FormField label="Amount in INR (₹)" required>
+          <FormField label="Amount in USD ($)" required>
             <input
               type="number"
               min="1"

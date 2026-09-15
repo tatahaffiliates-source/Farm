@@ -19,8 +19,8 @@ export const initialFarm: Farm = {
   id: 'farm-001',
   name: 'Sunland Swine & Livestock Farm',
   location: 'Sector 4, Agri-Belt, Pune District, Maharashtra',
-  currency: 'INR',
-  currency_symbol: '₹',
+  currency: 'USD',
+  currency_symbol: '$',
   weight_unit: 'kg',
   phone: '+91 98230 45678',
   email: 'operations@sunlandswine.in',
@@ -496,7 +496,7 @@ export const initialFeedItems: FeedItem[] = [
     feed_type: 'Starter feed',
     quantity: 380, // kg
     unit: 'kg',
-    cost_per_unit: 36, // ₹36/kg
+    cost_per_unit: 36, // $36/kg
     supplier: 'Godrej Agrovet Feeds',
     purchase_date: '2025-08-25',
     min_stock: 150,
@@ -690,11 +690,11 @@ export const initialSales: Sale[] = [
     pig_id: 'pig-008',
     pig_code: 'P-0108',
     weight: 104,
-    price_per_kg: 215, // ₹215 per kg live weight
+    price_per_kg: 215, // $215 per kg live weight
     total_amount: 22360,
     payment_status: 'Paid',
     payment_method: 'Bank Transfer',
-    notes: 'Live weight 104kg @ ₹215/kg. Paid via NEFT ref #AXIS98234.',
+    notes: 'Live weight 104kg @ $215/kg. Paid via NEFT ref #AXIS98234.',
     recorded_by: 'Rajesh Patil',
     created_at: '2025-09-02T00:00:00Z',
   },
@@ -710,7 +710,7 @@ export const initialSales: Sale[] = [
     total_amount: 43560,
     payment_status: 'Paid',
     payment_method: 'UPI',
-    notes: '2 Large White Cross finishers (98kg + 100kg) @ ₹220/kg.',
+    notes: '2 Large White Cross finishers (98kg + 100kg) @ $220/kg.',
     recorded_by: 'Rajesh Patil',
     created_at: '2025-08-28T00:00:00Z',
   },

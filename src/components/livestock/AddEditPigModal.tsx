@@ -54,7 +54,7 @@ export const AddEditPigModal: React.FC<AddEditPigModalProps> = ({
       setNotes(pigToEdit.notes || '');
     } else {
       // Auto suggest next Pig ID (e.g. P-0111)
-      const existing = db.getPigs();
+      void db.getPigs().then((existing) => {
       const nextNum = existing.length + 101;
       setPigId(`P-0${nextNum}`);
       setTagNumber(`TAG-${nextNum}`);
@@ -70,11 +70,12 @@ export const AddEditPigModal: React.FC<AddEditPigModalProps> = ({
       setFatherTag('');
       setMotherTag('');
       setNotes('');
+      }).catch((err) => setFormError(err.message));
     }
     setFormError(null);
   }, [pigToEdit, isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -93,7 +94,7 @@ export const AddEditPigModal: React.FC<AddEditPigModalProps> = ({
     setIsSubmitting(true);
     try {
       if (pigToEdit) {
-        db.updatePig(pigToEdit.id, {
+        await db.updatePig(pigToEdit.id, {
           pig_id: pigId.trim(),
           tag_number: tagNumber.trim() || undefined,
           breed,
@@ -111,7 +112,7 @@ export const AddEditPigModal: React.FC<AddEditPigModalProps> = ({
         });
         success(`Pig record ${pigId} updated successfully.`);
       } else {
-        db.addPig({
+        await db.addPig({
           pig_id: pigId.trim(),
           tag_number: tagNumber.trim() || undefined,
           breed,
@@ -280,7 +281,7 @@ export const AddEditPigModal: React.FC<AddEditPigModalProps> = ({
               />
             </FormField>
 
-            <FormField label="Purchase Price (₹)">
+            <FormField label="Purchase Price ($)">
               <input
                 type="number"
                 min="0"

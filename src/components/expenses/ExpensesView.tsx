@@ -5,7 +5,7 @@ import { StatCard } from '../common/StatCard';
 import { SearchBar } from '../common/SearchBar';
 import { EmptyState } from '../common/EmptyState';
 import { RecordExpenseModal } from './RecordExpenseModal';
-import { Receipt, Wheat, HardHat, Activity, Plus, IndianRupee } from 'lucide-react';
+import { Receipt, Wheat, HardHat, Activity, Plus, DollarSign } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface ExpensesViewProps {
@@ -69,28 +69,28 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ expenses, onRefresh 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           title="Total Farm Expenses"
-          value={`₹${totalExpenses.toLocaleString('en-IN')}`}
+          value={`$${totalExpenses.toLocaleString('en-US')}`}
           icon={Receipt}
           variant="rose"
           subtitle="Cumulative outflows"
         />
         <StatCard
           title="Feed Procurement"
-          value={`₹${feedExpenses.toLocaleString('en-IN')}`}
+          value={`$${feedExpenses.toLocaleString('en-US')}`}
           icon={Wheat}
           variant="amber"
           subtitle={`${totalExpenses > 0 ? ((feedExpenses / totalExpenses) * 100).toFixed(0) : 0}% of farm costs`}
         />
         <StatCard
           title="Labour & Wages"
-          value={`₹${labourExpenses.toLocaleString('en-IN')}`}
+          value={`$${labourExpenses.toLocaleString('en-US')}`}
           icon={HardHat}
           variant="blue"
           subtitle="Staff payroll"
         />
         <StatCard
           title="Vet, Meds & Vaccines"
-          value={`₹${healthExpenses.toLocaleString('en-IN')}`}
+          value={`$${healthExpenses.toLocaleString('en-US')}`}
           icon={Activity}
           variant="emerald"
           subtitle="Biosecurity & care"
@@ -159,7 +159,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ expenses, onRefresh 
                       {expense.receipt_number || '-'}
                     </td>
                     <td className="py-3 px-4 font-mono font-bold text-rose-700 text-right text-sm">
-                      ₹{expense.amount.toLocaleString('en-IN')}
+                      ${expense.amount.toLocaleString('en-US')}
                     </td>
                   </tr>
                 ))}

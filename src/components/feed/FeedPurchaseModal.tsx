@@ -133,7 +133,7 @@ export const FeedPurchaseModal: React.FC<FeedPurchaseModalProps> = ({
             />
           </FormField>
 
-          <FormField label="Rate per Unit (₹)" required>
+          <FormField label="Rate per Unit ($)" required>
             <input
               type="number"
               min="0.5"
@@ -153,7 +153,7 @@ export const FeedPurchaseModal: React.FC<FeedPurchaseModalProps> = ({
             <p className="text-xs text-emerald-700 mt-0.5">Will be booked directly under Farm Operating Expenses</p>
           </div>
           <span className="text-2xl font-bold font-mono text-emerald-800">
-            ₹{totalAmount.toLocaleString('en-IN')}
+            ${totalAmount.toLocaleString('en-US')}
           </span>
         </div>
 

@@ -84,7 +84,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
         />
         <StatCard
           title="Lifetime Sales Volume"
-          value={`₹${totalVolume.toLocaleString('en-IN')}`}
+          value={`$${totalVolume.toLocaleString('en-US')}`}
           icon={Users}
           variant="default"
           subtitle="From registered buyers"
@@ -161,7 +161,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                         )}
                       </td>
                       <td className="py-3 px-4 font-mono font-bold text-stone-900 text-right">
-                        ₹{spend.toLocaleString('en-IN')}
+                        ${spend.toLocaleString('en-US')}
                       </td>
                     </tr>
                   );

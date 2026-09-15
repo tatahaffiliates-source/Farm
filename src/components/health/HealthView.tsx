@@ -240,7 +240,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
                       </td>
                       <td className="py-3 px-4 text-stone-700">{log.veterinarian || 'Farm Staff'}</td>
                       <td className="py-3 px-4 font-mono font-bold text-stone-900 text-right">
-                        {log.cost > 0 ? `₹${log.cost}` : '₹0'}
+                        {log.cost > 0 ? `$${log.cost}` : '$0'}
                       </td>
                       <td className="py-3 px-4 text-stone-500">{log.follow_up_date || '-'}</td>
                     </tr>
@@ -314,7 +314,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-mono text-stone-700">₹{med.cost_per_unit}</td>
+                        <td className="py-3 px-4 font-mono text-stone-700">${med.cost_per_unit}</td>
                         <td className="py-3 px-4 text-stone-500">{med.expiry_date || 'N/A'}</td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">

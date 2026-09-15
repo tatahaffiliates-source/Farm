@@ -246,7 +246,7 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
             />
           </FormField>
 
-          <FormField label="Medical Cost (₹)" helperText="Auto-logs to farm expenses">
+          <FormField label="Medical Cost ($)" helperText="Auto-logs to farm expenses">
             <input
               type="number"
               min="0"

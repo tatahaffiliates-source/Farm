@@ -14,9 +14,10 @@ export interface AssistantResult {
 const READ_ONLY_ROLES: UserRole[] = ['admin', 'manager', 'worker'];
 const FINANCIAL_ROLES: UserRole[] = ['admin', 'manager'];
 
-function money(value: number): string {
-  const symbol = db.getFarm().currency_symbol || '₹';
-  return `${symbol}${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+async function money(value: number): Promise<string> {
+  const farm = await db.getFarm();
+  const symbol = farm.currency_symbol || '$';
+  return `${symbol}${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 }
 
 function today(): string {
@@ -27,12 +28,14 @@ function currentMonth(): string {
   return today().slice(0, 7);
 }
 
-function audit(action: string, target: string, success: boolean, error?: string): void {
+async function audit(action: string, target: string, success: boolean, error?: string): Promise<void> {
   const key = 'pfms_ai_audit_log';
   const entries = JSON.parse(localStorage.getItem(key) || '[]') as unknown[];
+  const currentUser = await db.getCurrentUser();
+  const farm = await db.getFarm();
   entries.unshift({
-    user_id: db.getCurrentUser().id,
-    farm_id: db.getFarm().id,
+    user_id: currentUser.id,
+    farm_id: farm.id,
     action,
     target,
     success,
@@ -51,49 +54,70 @@ function parseDate(text: string): string {
   return iso ? iso[0] : today();
 }
 
-function parseWeightAction(input: string): AssistantAction | undefined {
+async function parseWeightAction(input: string): Promise<AssistantAction | undefined> {
   const pig = input.match(/(?:pig\s*)?([a-z]{1,5}[-\s]?\d{2,})/i);
   const weight = input.match(/(\d+(?:\.\d+)?)\s*(?:kg|kilograms?)\b/i);
   if (!pig || !weight) return undefined;
-  const record = db.getPigById(pig[1].replace(/\s+/g, '-'));
+  const record = await db.getPigById(pig[1].replace(/\s+/g, '-'));
   if (!record) return undefined;
   return { type: 'record_weight', pigId: record.id, weight: Number(weight[1]), date: parseDate(input) };
 }
 
-export function answerFarmQuestion(input: string, role: UserRole): AssistantResult {
+export async function answerFarmQuestion(input: string, role: UserRole): Promise<AssistantResult> {
   const query = input.trim().toLowerCase();
-  const stats = db.getDashboardStats();
-  const pigs = db.getPigs();
-  const month = currentMonth();
-  const sales = db.getSales().filter((sale) => sale.sale_date.startsWith(month));
-  const expenses = db.getExpenses().filter((expense) => expense.date.startsWith(month));
 
   if (!isAllowed(role, READ_ONLY_ROLES)) return { text: 'You are not authorized to view farm records.' };
 
-  const weightAction = parseWeightAction(input);
+  const farm = await db.getFarm();
+  const pigs = await db.getPigs();
+const allSales = await db.getSales();
+const allExpenses = await db.getExpenses();
+const feedItemsForStats = await db.getFeedItems();
+const medicines = await db.getMedicines();
+const breedingRecords = await db.getBreedingRecords();
+
+const stats = await db.getDashboardStats({
+  pigs,
+  sales: allSales,
+  expenses: allExpenses,
+  feeds: feedItemsForStats,
+  medicines,
+  breeding: breedingRecords,
+});
+
+const month = currentMonth();
+const sales = allSales.filter((sale) => sale.sale_date.startsWith(month));
+const expenses = allExpenses.filter((expense) => expense.date.startsWith(month));
+  const weightAction = await parseWeightAction(input);
   if (weightAction?.type === 'record_weight') {
     if (weightAction.weight <= 0) return { text: 'Weight must be greater than zero.' };
+    const pig = pigs.find((p) => p.id === weightAction.pigId);
     return {
-      text: `I found ${pigs.find((pig) => pig.id === weightAction.pigId)?.pig_id}. Please confirm recording ${weightAction.weight} kg for this pig.`,
+      text: `I found ${pig?.pig_id}. Please confirm recording ${weightAction.weight} kg for this pig.`,
       action: weightAction,
     };
   }
 
   const pigId = input.match(/\b([a-z]{1,5}[-\s]?\d{2,})\b/i)?.[1]?.replace(/\s+/g, '-');
   if (pigId && /(show|find|details|about|who is)/i.test(input)) {
-    const pig = db.getPigById(pigId);
+    const pig = await db.getPigById(pigId);
     if (!pig) return { text: `I don't have a pig with ID ${pigId} in the farm records.` };
-    const health = db.getHealthRecords(pig.id).slice(0, 3);
+    const healthAll = await db.getHealthRecords(pig.id);
+    const health = healthAll.slice(0, 3);
     return {
       text: `${pig.pig_id} is a ${pig.sex.toLowerCase()} ${pig.breed} weighing ${pig.current_weight} kg. Status: ${pig.status}. Pen: ${pig.pen_location}.${health.length ? ` Latest health record: ${health[0].type} on ${health[0].record_date}.` : ' No health records are recorded.'}`,
     };
   }
 
   if (/(summary|overview|how is the farm|farm report)/i.test(input)) {
-    const lowFeed = db.getFeedItems().filter((feed) => feed.quantity <= feed.min_stock);
+    const feedItems = await db.getFeedItems();
+    const lowFeed = feedItems.filter((feed) => feed.quantity <= feed.min_stock);
     const sickPigs = pigs.filter((pig) => pig.status === 'Sick').length;
+    const salesTotal = await money(sales.reduce((sum, sale) => sum + sale.total_amount, 0));
+    const expensesTotal = await money(expenses.reduce((sum, expense) => sum + expense.amount, 0));
+    const netProfitText = await money(stats.netProfit);
     return {
-      text: `FARM SUMMARY\n\nLivestock\n${stats.totalPigs} active pigs: ${stats.femalePigs} female, ${stats.malePigs} male, ${stats.piglets} piglets.\n\nBreeding\n${stats.pregnantSows} pregnant sows and ${stats.upcomingDeliveriesCount} upcoming deliveries.\n\nThis month\nSales: ${money(sales.reduce((sum, sale) => sum + sale.total_amount, 0))}\nExpenses: ${money(expenses.reduce((sum, expense) => sum + expense.amount, 0))}\nOperating result: ${money(stats.netProfit)}\n\nAlerts\n${sickPigs} pigs marked sick and ${lowFeed.length} feed items at or below minimum stock.`,
+      text: `FARM SUMMARY\n\nLivestock\n${stats.totalPigs} active pigs: ${stats.femalePigs} female, ${stats.malePigs} male, ${stats.piglets} piglets.\n\nBreeding\n${stats.pregnantSows} pregnant sows and ${stats.upcomingDeliveriesCount} upcoming deliveries.\n\nThis month\nSales: ${salesTotal}\nExpenses: ${expensesTotal}\nOperating result: ${netProfitText}\n\nAlerts\n${sickPigs} pigs marked sick and ${lowFeed.length} feed items at or below minimum stock.`,
     };
   }
 
@@ -105,14 +129,16 @@ export function answerFarmQuestion(input: string, role: UserRole): AssistantResu
   }
 
   if (/(pregnant|expect.*birth|due)/i.test(input)) {
-    const pregnant = db.getBreedingRecords().filter((record) => record.status === 'Pregnant');
+    const breedingRecords = await db.getBreedingRecords();
+    const pregnant = breedingRecords.filter((record) => record.status === 'Pregnant');
     if (!pregnant.length) return { text: "I don't have any pregnant sow records." };
     const next = pregnant.slice(0, 5).map((record) => `${record.sow_tag || record.sow_id} due ${record.expected_delivery_date}`).join('; ');
     return { text: `${pregnant.length} pregnant sow records are active. Next recorded dates: ${next}.` };
   }
 
   if (/(sold|sales|revenue)/i.test(input)) {
-    return { text: `${sales.length} sales are recorded this month, totaling ${money(sales.reduce((sum, sale) => sum + sale.total_amount, 0))}.` };
+    const salesTotal = await money(sales.reduce((sum, sale) => sum + sale.total_amount, 0));
+    return { text: `${sales.length} sales are recorded this month, totaling ${salesTotal}.` };
   }
 
   const expenseMatch = input.match(/(?:add|record|create).*?(?:expense|spend).*?(\d+(?:\.\d+)?)/i);
@@ -120,19 +146,26 @@ export function answerFarmQuestion(input: string, role: UserRole): AssistantResu
     if (!isAllowed(role, FINANCIAL_ROLES)) return { text: 'You do not have permission to record expenses.' };
     const amount = Number(expenseMatch[1]);
     const category = /(feed)/i.test(input) ? 'Feed' : /(medicine|medical)/i.test(input) ? 'Medicine' : 'Other';
-    return { text: `I prepared a ${money(amount)} ${category.toLowerCase()} expense. Please confirm before I record it.`, action: { type: 'add_expense', amount, category, description: input.trim(), date: today() } };
+    const amountText = await money(amount);
+    return { text: `I prepared a ${amountText} ${category.toLowerCase()} expense. Please confirm before I record it.`, action: { type: 'add_expense', amount, category, description: input.trim(), date: today() } };
   }
 
   if (/(expense|spent|cost|profit)/i.test(input)) {
     if (!isAllowed(role, FINANCIAL_ROLES)) return { text: 'Financial records are restricted to administrators and managers.' };
     const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
     const revenue = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
-    if (/(profit|earning|net)/i.test(input)) return { text: `Recorded revenue this month is ${money(revenue)}, expenses are ${money(totalExpenses)}, and the operating result is ${money(revenue - totalExpenses)}.` };
-    return { text: `Recorded expenses this month total ${money(totalExpenses)}.` };
+    if (/(profit|earning|net)/i.test(input)) {
+      const revenueText = await money(revenue);
+      const expensesText = await money(totalExpenses);
+      const resultText = await money(revenue - totalExpenses);
+      return { text: `Recorded revenue this month is ${revenueText}, expenses are ${expensesText}, and the operating result is ${resultText}.` };
+    }
+    const expensesText = await money(totalExpenses);
+    return { text: `Recorded expenses this month total ${expensesText}.` };
   }
 
   if (/(feed|stock|inventory)/i.test(input)) {
-    const feeds = db.getFeedItems();
+    const feeds = await db.getFeedItems();
     const low = feeds.filter((feed) => feed.quantity <= feed.min_stock);
     return { text: `${feeds.length} feed items are recorded. Current stock: ${feeds.map((feed) => `${feed.name} ${feed.quantity} ${feed.unit}`).join(', ') || 'none'}.${low.length ? ` Low stock: ${low.map((feed) => feed.name).join(', ')}.` : ' No feed items are below minimum stock.'}` };
   }
@@ -140,28 +173,29 @@ export function answerFarmQuestion(input: string, role: UserRole): AssistantResu
   return { text: "I can answer questions about livestock, breeding, health records, feed, sales, expenses, profit, and farm summaries. For an action, include the record ID and the required amount or weight." };
 }
 
-export function executeAssistantAction(action: AssistantAction, role: UserRole): AssistantResult {
+export async function executeAssistantAction(action: AssistantAction, role: UserRole): Promise<AssistantResult> {
   try {
     if (action.type === 'record_weight') {
-      const pig = db.getPigById(action.pigId);
+      const pig = await db.getPigById(action.pigId);
       if (!pig) throw new Error('Pig record not found');
-      const weight = db.addWeight({ pig_id: pig.id, record_date: action.date, weight: action.weight, notes: action.notes });
-      audit('record_weight', pig.pig_id, true);
+      const weight = await db.addWeight({ pig_id: pig.id, record_date: action.date, weight: action.weight, notes: action.notes });
+      await audit('record_weight', pig.pig_id, true);
       return { text: `Weight recorded successfully. ${pig.pig_id} is now recorded at ${weight.weight} kg.`, refresh: true };
     }
     if (!isAllowed(role, FINANCIAL_ROLES)) return { text: 'You do not have permission to record expenses.' };
-    const expense = db.addExpense({
+    const expense = await db.addExpense({
       date: action.date,
       category: action.category,
       amount: action.amount,
       description: action.description,
       payment_method: 'Cash' as PaymentMethod,
     });
-    audit('create_expense', expense.id, true);
-    return { text: `Expense recorded successfully: ${money(expense.amount)} for ${expense.category}.`, refresh: true };
+    await audit('create_expense', expense.id, true);
+    const amountText = await money(expense.amount);
+    return { text: `Expense recorded successfully: ${amountText} for ${expense.category}.`, refresh: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'database operation failed';
-    audit(action.type, 'unknown', false, message);
+    await audit(action.type, 'unknown', false, message);
     return { text: `I couldn't complete that action. No record was created. ${message}` };
   }
 }

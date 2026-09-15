@@ -6,7 +6,7 @@ import { SearchBar } from '../common/SearchBar';
 import { StatusBadge } from '../common/StatusBadge';
 import { EmptyState } from '../common/EmptyState';
 import { RecordSaleModal } from './RecordSaleModal';
-import { TrendingUp, Users, Scale, IndianRupee, Plus, FileText } from 'lucide-react';
+import { TrendingUp, Users, Scale, DollarSign, Plus, FileText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface SalesViewProps {
@@ -65,7 +65,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           title="Total Gross Revenue"
-          value={`₹${totalRevenue.toLocaleString('en-IN')}`}
+          value={`$${totalRevenue.toLocaleString('en-US')}`}
           icon={TrendingUp}
           variant="emerald"
           subtitle="Cumulative sales"
@@ -79,14 +79,14 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
         />
         <StatCard
           title="Average Realized Rate"
-          value={`₹${avgRatePerKg} / kg`}
-          icon={IndianRupee}
+          value={`$${avgRatePerKg} / kg`}
+          icon={DollarSign}
           variant="purple"
           subtitle="Live weight market price"
         />
         <StatCard
           title="Pending Receivables"
-          value={`₹${pendingAmount.toLocaleString('en-IN')}`}
+          value={`$${pendingAmount.toLocaleString('en-US')}`}
           icon={FileText}
           variant={pendingAmount > 0 ? 'amber' : 'default'}
           subtitle="Uncollected payments"
@@ -141,9 +141,9 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
                       </span>
                     </td>
                     <td className="py-3 px-4 font-mono font-medium">{sale.weight} kg</td>
-                    <td className="py-3 px-4 font-mono text-stone-600">₹{sale.price_per_kg}</td>
+                    <td className="py-3 px-4 font-mono text-stone-600">${sale.price_per_kg}</td>
                     <td className="py-3 px-4 font-mono font-bold text-stone-900 text-right text-sm">
-                      ₹{sale.total_amount.toLocaleString('en-IN')}
+                      ${sale.total_amount.toLocaleString('en-US')}
                     </td>
                     <td className="py-3 px-4 text-stone-600">{sale.payment_method}</td>
                     <td className="py-3 px-4">

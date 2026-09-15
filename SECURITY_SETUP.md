@@ -22,24 +22,26 @@ Run `001_initial_schema.sql`, then `002_security_hardening.sql` in the Supabase 
 
 ## One-time owner bootstrap
 
-Do not use public signup to create the owner.
+Do not use public signup or a client-side role selector to create the owner. Google OAuth only authenticates the Google identity; it does not grant admin access.
 
-1. In Supabase Dashboard, create the first Auth user manually with email confirmation enabled.
-2. Create the farm row in the SQL editor and record its UUID.
-3. Run this statement with the Auth user's UUID and farm UUID substituted:
+1. Enable Google under Supabase **Authentication -> Providers -> Google** and configure the Google callback URL.
+2. Have the owner sign in once with Google. Supabase creates the Auth user and the worker-default profile trigger creates a profile row.
+3. Create the farm row in the SQL editor and record its UUID.
+4. Find the owner's Auth user UUID under **Authentication -> Users**.
+5. Run this statement with the Auth user's UUID and farm UUID substituted:
 
 ```sql
 INSERT INTO public.profiles (id, farm_id, full_name, email, role, status)
 VALUES ('AUTH_USER_UUID', 'FARM_UUID', 'Farm Owner', 'owner@example.com', 'admin', 'active');
 ```
 
-This is an administrative one-time operation. The application never accepts `admin` from a browser request.
+This is an administrative one-time operation. The application never accepts `admin` from a browser request. After this update, the owner can use Google Sign-In and will enter the admin dashboard.
 
 ## Manager and worker invitations
 
 Deploy `supabase/functions/manage-user` with the Supabase CLI. The function receives the caller's access token, verifies an active `admin` profile in the database, invites the Auth user, and assigns only `manager` or `worker` in the caller's farm. Keep `SUPABASE_SERVICE_ROLE_KEY` configured only as a server-side function secret.
 
-Public worker registrations are handled in the application's **Settings -> Manage Users** screen. The admin sees a **Pending worker accounts** section and clicks **Assign to this farm**. This calls the protected `assign_pending` action in the Edge Function; the browser never writes `farm_id` directly.
+Workers and managers should be invited from **Team & Roles**. The invited user's Google email must match the invited email so Supabase can associate the OAuth identity with the invited account. The profile's stored role and farm assignment determine the dashboard; users never choose their role at login.
 
 The current UI intentionally does not expose role simulation or demo credentials. The existing local-storage mode is for offline/demo development only; production must have Supabase configured.
 
@@ -47,8 +49,8 @@ The current UI intentionally does not expose role simulation or demo credentials
 
 Use separate real Supabase accounts for an owner, manager, worker, and a user assigned to another farm. Verify:
 
-- a public signup creates a worker profile with no farm assignment;
-- changing signup metadata or request payload cannot create an admin/manager;
+- an uninvited Google account is signed out because it has no assigned farm profile;
+- changing OAuth claims or request payload cannot create an admin/manager;
 - missing/disabled profiles are rejected by the app;
 - workers cannot select, navigate to, or query admin/manager data;
 - managers cannot update profiles or assign roles;

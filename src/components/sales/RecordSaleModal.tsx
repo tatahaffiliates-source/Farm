@@ -33,10 +33,9 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const pigs = db.getPigs().filter((p) => p.status === 'Active' || p.status === 'Sick');
-    const custs = db.getCustomers();
-    setActivePigs(pigs);
-    setCustomers(custs);
+    void Promise.all([db.getPigs(), db.getCustomers()]).then(([allPigs, custs]) => {
+    const pigs = allPigs.filter((p) => p.status === 'Active' || p.status === 'Sick');
+    setActivePigs(pigs); setCustomers(custs);
 
     if (preselectedPigId) {
       setPigId(preselectedPigId);
@@ -50,6 +49,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
     if (custs.length > 0) {
       setCustomerId(custs[0].id);
     }
+    }).catch((err) => error(err.message));
   }, [isOpen, preselectedPigId]);
 
   const handlePigChange = (id: string) => {
@@ -64,7 +64,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
   const rateNum = parseFloat(pricePerKg) || 0;
   const totalAmount = weightNum * rateNum;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pigId) {
       error('Please select an active pig to sell.');
@@ -84,7 +84,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
       const selectedPig = activePigs.find((p) => p.id === pigId);
       const selectedCustomer = customers.find((c) => c.id === customerId);
 
-      db.recordSale({
+      await db.recordSale({
         sale_date: saleDate,
         customer_id: customerId,
         customer_name: selectedCustomer?.name || 'Wholesale Buyer',
@@ -99,7 +99,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
       });
 
       success(
-        `Sale of ${selectedPig?.pig_id} recorded (₹${totalAmount.toLocaleString('en-IN')}). Pig status set to 'Sold'.`
+        `Sale of ${selectedPig?.pig_id} recorded ($${totalAmount.toLocaleString('en-US')}). Pig status set to 'Sold'.`
       );
       onSuccess();
       onClose();
@@ -176,7 +176,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
               />
             </FormField>
 
-            <FormField label="Agreed Price per kg (₹)" required>
+            <FormField label="Agreed Price per kg ($)" required>
               <input
                 type="number"
                 step="1"
@@ -195,11 +195,11 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
                 Total Transaction Value
               </span>
               <p className="text-xs text-emerald-700">
-                Formula: {weightNum} kg × ₹{rateNum} / kg
+                Formula: {weightNum} kg × ${rateNum} / kg
               </p>
             </div>
             <span className="text-2xl font-bold font-mono text-emerald-800">
-              ₹{totalAmount.toLocaleString('en-IN')}
+              ${totalAmount.toLocaleString('en-US')}
             </span>
           </div>
         </div>

@@ -59,7 +59,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Format currency
   const formatCurrency = (val: number) => {
-    return `₹${val.toLocaleString('en-IN')}`;
+    return `$${val.toLocaleString('en-US')}`;
   };
 
   // Recent 5 sales
@@ -111,10 +111,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Farm Management Overview
+                {role === 'admin' ? 'Owner Admin Dashboard' : role === 'manager' ? 'Farm Manager Dashboard' : 'Worker Dashboard'}
               </span>
               <span className="text-xs text-stone-400">
-                {new Date().toLocaleDateString('en-IN', {
+                {new Date().toLocaleDateString('en-US', {
                   weekday: 'short',
                   day: 'numeric',
                   month: 'short',
@@ -131,13 +131,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => onOpenQuickAction('add-pig')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Pig
-            </button>
+            {!isWorker && (
+              <button
+                onClick={() => onOpenQuickAction('add-pig')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Pig
+              </button>
+            )}
             <button
               onClick={() => onOpenQuickAction('record-weight')}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-stone-700 hover:bg-stone-600 text-white shadow-xs transition-colors cursor-pointer"
@@ -398,7 +400,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
-                  Revenue vs Operating Expenses (INR)
+                  Revenue vs Operating Expenses (USD)
                 </h3>
                 <p className="text-xs text-stone-500">Monthly trend answering profitability questions</p>
               </div>
@@ -414,10 +416,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} />
                   <YAxis
                     tick={{ fontSize: 11, fill: '#6b7280' }}
-                    tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
-                    formatter={(value: any) => [`₹${Number(value).toLocaleString('en-IN')}`, '']}
+                    formatter={(value: any) => [`$${Number(value).toLocaleString('en-US')}`, '']}
                     contentStyle={{
                       backgroundColor: '#1c1917',
                       borderColor: '#292524',
@@ -427,8 +429,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="Sales" fill="#059669" radius={[4, 4, 0, 0]} name="Sales (₹)" />
-                  <Bar dataKey="Expenses" fill="#e11d48" radius={[4, 4, 0, 0]} name="Expenses (₹)" />
+                  <Bar dataKey="Sales" fill="#059669" radius={[4, 4, 0, 0]} name="Sales ($)" />
+                  <Bar dataKey="Expenses" fill="#e11d48" radius={[4, 4, 0, 0]} name="Expenses ($)" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -544,7 +546,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
                 {h.cost > 0 && (
                   <span className="text-xs font-bold text-stone-800 bg-white px-2 py-1 rounded border border-stone-200 shrink-0">
-                    ₹{h.cost}
+                    ${h.cost}
                   </span>
                 )}
               </div>

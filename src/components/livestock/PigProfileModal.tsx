@@ -263,7 +263,7 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
                   <div>
                     <span className="text-stone-400">Purchase Price:</span>
                     <p className="font-semibold text-stone-800">
-                      {pig.purchase_price ? `₹${pig.purchase_price.toLocaleString('en-IN')}` : 'Born on Farm'}
+                      {pig.purchase_price ? `$${pig.purchase_price.toLocaleString('en-US')}` : 'Born on Farm'}
                     </p>
                   </div>
                   <div>
@@ -408,7 +408,7 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
                     <div className="flex flex-wrap items-center gap-4 text-[11px] text-stone-500 pt-1 border-t border-stone-100">
                       {h.medicine_name && <span>Medicine: <strong className="text-stone-800">{h.medicine_name} ({h.dosage || 'Standard'})</strong></span>}
                       {h.veterinarian && <span>Vet: <strong className="text-stone-800">{h.veterinarian}</strong></span>}
-                      {h.cost > 0 && <span>Cost: <strong className="text-stone-800">₹{h.cost}</strong></span>}
+                      {h.cost > 0 && <span>Cost: <strong className="text-stone-800">${h.cost}</strong></span>}
                       {h.follow_up_date && <span>Follow-up: <strong className="text-amber-700">{h.follow_up_date}</strong></span>}
                     </div>
                   </div>
@@ -458,21 +458,21 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
               <div className="p-3.5 rounded-xl border border-stone-200 bg-white">
                 <span className="text-[11px] font-semibold text-stone-400 uppercase">Purchase Cost</span>
                 <p className="text-lg font-bold text-stone-900 font-mono mt-0.5">
-                  ₹{purchaseCost.toLocaleString('en-IN')}
+                  ${purchaseCost.toLocaleString('en-US')}
                 </p>
               </div>
 
               <div className="p-3.5 rounded-xl border border-stone-200 bg-white">
                 <span className="text-[11px] font-semibold text-stone-400 uppercase">Medical & Vet Outlay</span>
                 <p className="text-lg font-bold text-rose-700 font-mono mt-0.5">
-                  ₹{totalMedicalCost.toLocaleString('en-IN')}
+                  ${totalMedicalCost.toLocaleString('en-US')}
                 </p>
               </div>
 
               <div className="p-3.5 rounded-xl border border-stone-200 bg-white">
                 <span className="text-[11px] font-semibold text-stone-400 uppercase">Sale Revenue</span>
                 <p className="text-lg font-bold text-emerald-700 font-mono mt-0.5">
-                  {totalSaleRevenue > 0 ? `₹${totalSaleRevenue.toLocaleString('en-IN')}` : 'Unsold (Active Asset)'}
+                  {totalSaleRevenue > 0 ? `$${totalSaleRevenue.toLocaleString('en-US')}` : 'Unsold (Active Asset)'}
                 </p>
               </div>
             </div>
@@ -484,7 +484,7 @@ export const PigProfileModal: React.FC<PigProfileModalProps> = ({
                   <p className="text-xs text-emerald-700 mt-0.5">Sale price minus initial purchase & veterinary care</p>
                 </div>
                 <p className="text-2xl font-bold font-mono text-emerald-800">
-                  ₹{estimatedProfit.toLocaleString('en-IN')}
+                  ${estimatedProfit.toLocaleString('en-US')}
                 </p>
               </div>
             )}

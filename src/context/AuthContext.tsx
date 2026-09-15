@@ -116,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setAuthenticatedProfile(data.user.id);
       } else {
         // Local auth verification
-        const profiles = db.getProfiles();
+        const profiles = await db.getProfiles();
         const found = profiles.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
         if (!found) {
           throw new Error('No user account found with this email address.');

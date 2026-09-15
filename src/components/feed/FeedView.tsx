@@ -96,7 +96,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           title="Total Feed on Hand"
-          value={`${totalKgStock.toLocaleString('en-IN')} kg`}
+          value={`${totalKgStock.toLocaleString('en-US')} kg`}
           icon={Wheat}
           variant="emerald"
           subtitle="Combined diets"
@@ -118,7 +118,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         {!isWorker ? (
           <StatCard
             title="Total Feed Purchases"
-            value={`₹${totalPurchaseSpend.toLocaleString('en-IN')}`}
+            value={`$${totalPurchaseSpend.toLocaleString('en-US')}`}
             icon={ShoppingCart}
             variant="purple"
             subtitle="Recorded feed outlay"
@@ -214,10 +214,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
                           </span>
                         </td>
                         <td className="py-3 px-4 font-mono font-bold text-stone-900">
-                          {(feed.current_stock ?? 0).toLocaleString('en-IN')} {feed.unit}
+                          {(feed.current_stock ?? 0).toLocaleString('en-US')} {feed.unit}
                         </td>
                         <td className="py-3 px-4 font-mono text-stone-500">
-                          {(feed.min_stock_level ?? 0).toLocaleString('en-IN')} {feed.unit}
+                          {(feed.min_stock_level ?? 0).toLocaleString('en-US')} {feed.unit}
                         </td>
                         <td className="py-3 px-4">
                           {isLow ? (
@@ -230,7 +230,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-mono text-stone-700">₹{feed.cost_per_unit}</td>
+                        <td className="py-3 px-4 font-mono text-stone-700">${feed.cost_per_unit}</td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
@@ -298,9 +298,9 @@ export const FeedView: React.FC<FeedViewProps> = ({
                       <td className="py-3 px-4 font-mono">
                         {purchase.quantity} {purchase.unit ?? 'kg'}
                       </td>
-                      <td className="py-3 px-4 font-mono text-stone-600">₹{purchase.unit_price ?? purchase.cost}</td>
+                      <td className="py-3 px-4 font-mono text-stone-600">${purchase.unit_price ?? purchase.cost}</td>
                       <td className="py-3 px-4 font-mono font-bold text-stone-900 text-right">
-                        ₹{(purchase.total_amount ?? purchase.cost).toLocaleString('en-IN')}
+                        ${(purchase.total_amount ?? purchase.cost).toLocaleString('en-US')}
                       </td>
                       <td className="py-3 px-4 text-stone-600">{purchase.payment_method ?? '-'}</td>
                       <td className="py-3 px-4 font-mono text-xs text-stone-500">

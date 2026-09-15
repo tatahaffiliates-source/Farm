@@ -140,7 +140,7 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
             />
           </FormField>
 
-          <FormField label="Cost / Unit (₹)">
+          <FormField label="Cost / Unit ($)">
             <input
               type="number"
               min="0"
