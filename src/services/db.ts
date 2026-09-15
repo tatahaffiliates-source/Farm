@@ -106,8 +106,34 @@ class FarmDatabase {
   public async updateBreedingRecord(id: string, updates: Partial<BreedingRecord>): Promise<BreedingRecord> { const result = await this.update<BreedingRecord>('breeding_records', id, updates); if (updates.status === 'Pregnant') await this.updatePig(result.sow_id, { status: 'Pregnant' }); if (['Delivered', 'Failed', 'Cancelled'].includes(updates.status || '')) await this.updatePig(result.sow_id, { status: 'Active' }); return result; }
 
   public getBirthRecords(): Promise<BirthRecord[]> { return this.list<BirthRecord>('birth_records', 'birth_date'); }
-  public async addBirthRecord(data: Omit<BirthRecord, 'id' | 'farm_id' | 'created_at'>, piglets?: PigletBatchItem[]): Promise<BirthRecord> {
-    const result = await this.insert<BirthRecord>('birth_records', { ...data, recorded_by: this.getCurrentUser().id }); await this.updatePig(result.sow_id, { status: 'Active' }); if (result.breeding_id) await this.updateBreedingRecord(result.breeding_id, { status: 'Delivered', actual_delivery_date: result.birth_date });
+  public async addBirthRecord(data: Omit<BirthRecord, 'id' | 'farm_id' | 'created_at'> & { pen_location?: string; litter_weight?: number; mummified?: number; [key: string]: any }, piglets?: PigletBatchItem[]): Promise<BirthRecord> {
+    // birth_records only has: breeding_id, sow_id, sow_tag, boar_id, boar_tag, birth_date,
+    // number_born, number_alive, number_stillborn, number_currently_alive, notes, recorded_by.
+    // pen_location / litter_weight / mummified have no dedicated columns, so they're folded
+    // into notes instead of being spread into the insert (which caused a type error before,
+    // since a text value like a pen name was landing in a numeric column).
+    const noteParts = [
+      data.pen_location ? `Pen: ${data.pen_location}` : null,
+      data.litter_weight != null ? `Litter weight: ${data.litter_weight} kg` : null,
+      data.mummified != null && Number(data.mummified) > 0 ? `Mummified: ${data.mummified}` : null,
+      data.notes,
+    ].filter(Boolean);
+
+    const result = await this.insert<BirthRecord>('birth_records', {
+      breeding_id: data.breeding_id,
+      sow_id: data.sow_id,
+      sow_tag: data.sow_tag,
+      boar_id: data.boar_id,
+      boar_tag: data.boar_tag,
+      birth_date: data.birth_date,
+      number_born: data.number_born,
+      number_alive: data.number_alive,
+      number_stillborn: data.number_stillborn,
+      number_currently_alive: data.number_currently_alive ?? data.number_alive,
+      notes: noteParts.join(' | '),
+      recorded_by: this.getCurrentUser().id,
+    });
+    await this.updatePig(result.sow_id, { status: 'Active' }); if (result.breeding_id) await this.updateBreedingRecord(result.breeding_id, { status: 'Delivered', actual_delivery_date: result.birth_date });
     const sow = await this.getPigById(result.sow_id); for (const piglet of piglets || []) await this.addPig({ pig_id: piglet.pig_id, breed: `${sow?.breed || 'Cross'} Cross`, sex: piglet.sex, dob: result.birth_date, source: 'Born on Farm', current_weight: piglet.weight || 1.4, pen_location: piglet.pen_location, status: 'Active', mother_id: result.sow_id, mother_tag: result.sow_tag, father_id: result.boar_id, father_tag: result.boar_tag, notes: piglet.notes });
     return result;
   }
