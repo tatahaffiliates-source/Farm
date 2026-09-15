@@ -26,11 +26,13 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   // Compute stats for each customer from real sales
   const customerSalesMap: Record<string, { count: number; total: number }> = {};
   sales.forEach((s) => {
-    if (!customerSalesMap[s.customer_id]) {
-      customerSalesMap[s.customer_id] = { count: 0, total: 0 };
+    const customerId = s.customer_id;
+    if (!customerId) return;
+    if (!customerSalesMap[customerId]) {
+      customerSalesMap[customerId] = { count: 0, total: 0 };
     }
-    customerSalesMap[s.customer_id].count += 1;
-    customerSalesMap[s.customer_id].total += s.total_amount;
+    customerSalesMap[customerId].count += 1;
+    customerSalesMap[customerId].total += s.total_amount;
   });
 
   const wholesaleCount = customers.filter((c) => c.type === 'Wholesale Buyer').length;
@@ -42,7 +44,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.phone && c.phone.includes(searchQuery)) ||
       (c.address && c.address.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      c.type.toLowerCase().includes(searchQuery.toLowerCase())
+      (c.type && c.type.toLowerCase().includes(searchQuery.toLowerCase()))
     );
   });
 

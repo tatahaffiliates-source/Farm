@@ -24,7 +24,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       error('Please enter customer/company name.');
@@ -33,9 +33,9 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      db.addCustomer({
+      await db.addCustomer({
         name: name.trim(),
-        phone: phone.trim() || undefined,
+        phone: phone.trim(),
         type,
         address: address.trim() || undefined,
         notes: notes.trim() || undefined,
