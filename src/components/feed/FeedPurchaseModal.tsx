@@ -32,7 +32,7 @@ export const FeedPurchaseModal: React.FC<FeedPurchaseModalProps> = ({
   const priceNum = parseFloat(unitPrice) || 0;
   const totalAmount = qtyNum * priceNum;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!feedId) {
       error('Please select feed item.');
@@ -47,7 +47,7 @@ export const FeedPurchaseModal: React.FC<FeedPurchaseModalProps> = ({
     try {
       const selectedFeed = feedItems.find((f) => f.id === feedId);
 
-      db.recordFeedPurchase({
+      await db.recordFeedPurchase({
         feed_id: feedId,
         feed_name: selectedFeed?.name || 'Feed',
         supplier: supplier.trim(),

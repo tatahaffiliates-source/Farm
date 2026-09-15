@@ -29,7 +29,7 @@ export const FeedUsageModal: React.FC<FeedUsageModalProps> = ({
   const selectedFeed = feedItems.find((f) => f.id === feedId);
   const qtyNum = parseFloat(quantityUsed) || 0;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!feedId) {
       error('Please select feed ration.');
@@ -49,7 +49,7 @@ export const FeedUsageModal: React.FC<FeedUsageModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      db.recordFeedUsage({
+      await db.recordFeedUsage({
         feed_id: feedId,
         feed_name: selectedFeed?.name || 'Feed',
         usage_date: usageDate,
