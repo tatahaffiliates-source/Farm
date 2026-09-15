@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Pig, BreedingStatus } from '../../types';
+import { Pig, BreedingStatus, BreedingRecord } from '../../types';
 import { Modal } from '../common/Modal';
 import { FormField } from '../common/FormField';
 import { db } from '../../services/db';
@@ -10,6 +10,7 @@ interface RecordBreedingModalProps {
   onClose: () => void;
   onSuccess: () => void;
   preselectedSowId?: string;
+  breedingRecordToEdit?: BreedingRecord | null;
 }
 
 export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
@@ -17,6 +18,7 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
   onClose,
   onSuccess,
   preselectedSowId,
+  breedingRecordToEdit,
 }) => {
   const { success, error } = useToast();
   const [sows, setSows] = useState<Pig[]>([]);
@@ -31,30 +33,41 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const isEditing = !!breedingRecordToEdit;
+
   useEffect(() => {
     void db.getPigs().then((allPigs) => {
       const femalePigs = allPigs.filter((p) => p.sex === 'Female' && p.status !== 'Sold' && p.status !== 'Dead');
       const malePigs = allPigs.filter((p) => p.sex === 'Male' && p.status !== 'Sold' && p.status !== 'Dead');
       setSows(femalePigs); setBoars(malePigs);
 
-    if (preselectedSowId) {
-      setSowId(preselectedSowId);
-    } else if (femalePigs.length > 0) {
-      setSowId(femalePigs[0].id);
-    }
+      if (isEditing && breedingRecordToEdit) {
+        setSowId(breedingRecordToEdit.sow_id);
+        setBoarId(breedingRecordToEdit.boar_id || '');
+        setMatingDate(breedingRecordToEdit.mating_date);
+        setServiceType(breedingRecordToEdit.service_type as 'Natural' | 'AI' || 'Natural');
+        setStatus(breedingRecordToEdit.status);
+        setNotes(breedingRecordToEdit.notes || '');
+      } else if (preselectedSowId) {
+        setSowId(preselectedSowId);
+      } else if (femalePigs.length > 0) {
+        setSowId(femalePigs[0].id);
+      }
 
-      if (malePigs.length > 0) setBoarId(malePigs[0].id);
+      if (malePigs.length > 0 && !isEditing) setBoarId(malePigs[0].id);
     }).catch((err) => error(err.message));
-  }, [isOpen, preselectedSowId]);
+  }, [isOpen, preselectedSowId, breedingRecordToEdit, isEditing]);
 
   // Auto-calculate 114 days gestation (3 months, 3 weeks, 3 days)
   useEffect(() => {
-    if (matingDate) {
+    if (matingDate && !isEditing) {
       const d = new Date(matingDate);
       d.setDate(d.getDate() + 114);
       setExpectedDate(d.toISOString().split('T')[0]);
+    } else if (isEditing && breedingRecordToEdit) {
+      setExpectedDate(breedingRecordToEdit.expected_delivery_date);
     }
-  }, [matingDate]);
+  }, [matingDate, isEditing, breedingRecordToEdit]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,24 +81,48 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
       const selectedSow = sows.find((s) => s.id === sowId);
       const selectedBoar = boars.find((b) => b.id === boarId);
 
-      await db.addBreedingRecord({
-        sow_id: sowId,
-        sow_tag: selectedSow?.pig_id || 'Sow',
-        boar_id: boarId || undefined,
-        boar_tag: selectedBoar?.pig_id || 'Breeding Boar',
-        mating_date: matingDate,
-        expected_delivery_date: expectedDate,
-        service_type: serviceType,
-        status,
-        notes: notes.trim() || undefined,
-      });
+      if (isEditing && breedingRecordToEdit) {
+        await db.updateBreedingRecord(breedingRecordToEdit.id, {
+          sow_id: sowId,
+          sow_tag: selectedSow?.pig_id || 'Sow',
+          boar_id: boarId || undefined,
+          boar_tag: selectedBoar?.pig_id || 'Breeding Boar',
+          mating_date: matingDate,
+          expected_delivery_date: expectedDate,
+          service_type: serviceType,
+          status,
+          notes: notes.trim() || undefined,
+        });
 
-      // Update sow's status to 'Pregnant' if status is Pregnant
-      if (status === 'Pregnant') {
-        await db.updatePig(sowId, { status: 'Pregnant' });
+        // Update sow's status based on breeding status
+        if (status === 'Pregnant') {
+          await db.updatePig(sowId, { status: 'Pregnant' });
+        } else if (['Delivered', 'Failed', 'Cancelled'].includes(status)) {
+          await db.updatePig(sowId, { status: 'Active' });
+        }
+
+        success('Breeding record updated successfully.');
+      } else {
+        await db.addBreedingRecord({
+          sow_id: sowId,
+          sow_tag: selectedSow?.pig_id || 'Sow',
+          boar_id: boarId || undefined,
+          boar_tag: selectedBoar?.pig_id || 'Breeding Boar',
+          mating_date: matingDate,
+          expected_delivery_date: expectedDate,
+          service_type: serviceType,
+          status,
+          notes: notes.trim() || undefined,
+        });
+
+        // Update sow's status to 'Pregnant' if status is Pregnant
+        if (status === 'Pregnant') {
+          await db.updatePig(sowId, { status: 'Pregnant' });
+        }
+
+        success(`Breeding schedule recorded. Expected farrowing: ${expectedDate}`);
       }
 
-      success(`Breeding schedule recorded. Expected farrowing: ${expectedDate}`);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -99,8 +136,8 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Record Sow Mating / Insemination"
-      subtitle="Logs service dates and automatically projects the standard 114-day swine gestation"
+      title={isEditing ? 'Edit Breeding Record' : 'Record Sow Mating / Insemination'}
+      subtitle={isEditing ? 'Update breeding cycle details and expected farrowing date' : 'Logs service dates and automatically projects the standard 114-day swine gestation'}
       maxWidth="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -111,6 +148,7 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
               onChange={(e) => setSowId(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-lg border border-stone-300 text-stone-900"
               required
+              disabled={isEditing}
             >
               {sows.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -143,6 +181,7 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
               value={matingDate}
               onChange={(e) => setMatingDate(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-lg border border-stone-300 text-stone-900"
+              disabled={isEditing}
             />
           </FormField>
 
@@ -179,6 +218,9 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
             <option value="Pregnant">Confirmed Pregnant</option>
             <option value="Mated">Mated (Awaiting Confirmation)</option>
             <option value="Planned">Planned</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Failed">Failed</option>
+            <option value="Cancelled">Cancelled</option>
           </select>
         </FormField>
 
@@ -205,7 +247,7 @@ export const RecordBreedingModal: React.FC<RecordBreedingModalProps> = ({
             disabled={isSubmitting}
             className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer"
           >
-            {isSubmitting ? 'Recording...' : 'Save Breeding Record'}
+            {isSubmitting ? 'Saving...' : isEditing ? 'Update Breeding Record' : 'Save Breeding Record'}
           </button>
         </div>
       </form>

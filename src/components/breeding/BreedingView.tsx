@@ -6,8 +6,11 @@ import { StatusBadge } from '../common/StatusBadge';
 import { EmptyState } from '../common/EmptyState';
 import { RecordBreedingModal } from './RecordBreedingModal';
 import { RecordBirthModal } from './RecordBirthModal';
-import { HeartHandshake, Calendar, Sparkles, Plus, Baby } from 'lucide-react';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { HeartHandshake, Calendar, Sparkles, Plus, Baby, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { db } from '../../services/db';
+import { useToast } from '../common/Toast';
 
 interface BreedingViewProps {
   breedingRecords: BreedingRecord[];
@@ -21,10 +24,16 @@ export const BreedingView: React.FC<BreedingViewProps> = ({
   onRefresh,
 }) => {
   const { role } = useAuth();
+  const { success, error } = useToast();
+  const isWorker = role === 'worker';
   const [activeSubTab, setActiveSubTab] = useState<'gestation' | 'births'>('gestation');
   const [isBreedingModalOpen, setIsBreedingModalOpen] = useState(false);
   const [isBirthModalOpen, setIsBirthModalOpen] = useState(false);
   const [selectedBreedingForBirth, setSelectedBreedingForBirth] = useState<BreedingRecord | null>(null);
+  const [editingBreedingRecord, setEditingBreedingRecord] = useState<BreedingRecord | null>(null);
+  const [breedingRecordToDelete, setBreedingRecordToDelete] = useState<BreedingRecord | null>(null);
+  const [birthRecordToDelete, setBirthRecordToDelete] = useState<BirthRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const pregnantSows = breedingRecords.filter((b) => b.status === 'Pregnant');
 
@@ -39,6 +48,36 @@ export const BreedingView: React.FC<BreedingViewProps> = ({
   // Calculate average litter size
   const totalBornAlive = birthRecords.reduce((sum, b) => sum + b.piglets_born_alive, 0);
   const avgLitterSize = birthRecords.length > 0 ? (totalBornAlive / birthRecords.length).toFixed(1) : '0';
+
+  const handleDeleteBreedingRecord = async () => {
+    if (!breedingRecordToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteBreedingRecord(breedingRecordToDelete.id);
+      success(`Breeding record for ${breedingRecordToDelete.sow_tag} deleted.`);
+      setBreedingRecordToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete breeding record.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteBirthRecord = async () => {
+    if (!birthRecordToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteBirthRecord(birthRecordToDelete.id);
+      success(`Birth record for ${birthRecordToDelete.sow_tag} deleted.`);
+      setBirthRecordToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete birth record.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-5 pb-12">
@@ -135,7 +174,7 @@ export const BreedingView: React.FC<BreedingViewProps> = ({
                     <th className="py-3 px-4">Expected Delivery (114d)</th>
                     <th className="py-3 px-4">Days Left</th>
                     <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Action</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -180,18 +219,43 @@ export const BreedingView: React.FC<BreedingViewProps> = ({
                           <StatusBadge status={record.status} />
                         </td>
                         <td className="py-3 px-4 text-right">
-                          {record.status === 'Pregnant' && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedBreedingForBirth(record);
-                                setIsBirthModalOpen(true);
-                              }}
-                              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-2xs cursor-pointer"
-                            >
-                              Log Birth
-                            </button>
-                          )}
+                          <div className="flex items-center justify-end gap-1">
+                            {record.status === 'Pregnant' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedBreedingForBirth(record);
+                                  setIsBirthModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-2xs cursor-pointer"
+                              >
+                                Log Birth
+                              </button>
+                            )}
+                            {!isWorker && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingBreedingRecord(record);
+                                  setIsBreedingModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors"
+                                title="Edit Record"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            {role === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => setBreedingRecordToDelete(record)}
+                                className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                title="Delete Record"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -228,6 +292,7 @@ export const BreedingView: React.FC<BreedingViewProps> = ({
                     <th className="py-3 px-4">Stillborn</th>
                     <th className="py-3 px-4">Litter Weight</th>
                     <th className="py-3 px-4">Location</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -253,6 +318,18 @@ export const BreedingView: React.FC<BreedingViewProps> = ({
                         {birth.litter_weight ? `${birth.litter_weight} kg` : '-'}
                       </td>
                       <td className="py-3 px-4 text-stone-600">{birth.pen_location}</td>
+                      <td className="py-3 px-4 text-right">
+                        {role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => setBirthRecordToDelete(birth)}
+                            className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            title="Delete Record"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -275,8 +352,12 @@ export const BreedingView: React.FC<BreedingViewProps> = ({
       {/* Record Breeding Modal */}
       <RecordBreedingModal
         isOpen={isBreedingModalOpen}
-        onClose={() => setIsBreedingModalOpen(false)}
+        onClose={() => {
+          setIsBreedingModalOpen(false);
+          setEditingBreedingRecord(null);
+        }}
         onSuccess={onRefresh}
+        breedingRecordToEdit={editingBreedingRecord}
       />
 
       {/* Record Birth Modal */}
@@ -288,6 +369,30 @@ export const BreedingView: React.FC<BreedingViewProps> = ({
         }}
         breedingRecord={selectedBreedingForBirth}
         onSuccess={onRefresh}
+      />
+
+      {/* Confirm Deletion Dialog - Breeding Records */}
+      <ConfirmDialog
+        isOpen={!!breedingRecordToDelete}
+        onClose={() => setBreedingRecordToDelete(null)}
+        onConfirm={handleDeleteBreedingRecord}
+        title={`Delete Breeding Record for ${breedingRecordToDelete?.sow_tag}?`}
+        message={`Are you sure you want to permanently delete the breeding record for ${breedingRecordToDelete?.sow_tag} (mated on ${breedingRecordToDelete?.mating_date})? This action cannot be undone.`}
+        confirmLabel="Delete Breeding Record"
+        isLoading={isDeleting}
+        isDestructive={true}
+      />
+
+      {/* Confirm Deletion Dialog - Birth Records */}
+      <ConfirmDialog
+        isOpen={!!birthRecordToDelete}
+        onClose={() => setBirthRecordToDelete(null)}
+        onConfirm={handleDeleteBirthRecord}
+        title={`Delete Birth Record for ${birthRecordToDelete?.sow_tag}?`}
+        message={`Are you sure you want to permanently delete the birth record for ${birthRecordToDelete?.sow_tag} (born on ${birthRecordToDelete?.birth_date})? This action cannot be undone. Note: This will not remove piglets already registered in the livestock table.`}
+        confirmLabel="Delete Birth Record"
+        isLoading={isDeleting}
+        isDestructive={true}
       />
     </div>
   );

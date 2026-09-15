@@ -104,6 +104,8 @@ class FarmDatabase {
     return result;
   }
   public async updateBreedingRecord(id: string, updates: Partial<BreedingRecord>): Promise<BreedingRecord> { const result = await this.update<BreedingRecord>('breeding_records', id, updates); if (updates.status === 'Pregnant') await this.updatePig(result.sow_id, { status: 'Pregnant' }); if (['Delivered', 'Failed', 'Cancelled'].includes(updates.status || '')) await this.updatePig(result.sow_id, { status: 'Active' }); return result; }
+  public async deleteBreedingRecord(id: string): Promise<void> { return this.remove('breeding_records', id); }
+  public async deleteBirthRecord(id: string): Promise<void> { return this.remove('birth_records', id); }
 
   public getBirthRecords(): Promise<BirthRecord[]> { return this.list<BirthRecord>('birth_records', 'birth_date'); }
   public async addBirthRecord(data: Omit<BirthRecord, 'id' | 'farm_id' | 'created_at'> & { pen_location?: string; litter_weight?: number; mummified?: number; [key: string]: any }, piglets?: PigletBatchItem[]): Promise<BirthRecord> {
