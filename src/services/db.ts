@@ -126,8 +126,65 @@ class FarmDatabase {
   public updateFeedItem(id: string, updates: Partial<FeedItem>): Promise<FeedItem> { return this.update<FeedItem>('feed_items', id, updates); }
   public getFeedTransactions(): Promise<FeedTransaction[]> { return this.list<FeedTransaction>('feed_transactions', 'date'); }
   public async getFeedPurchases(): Promise<FeedTransaction[]> { return (await this.getFeedTransactions()).filter((item) => item.type === 'purchase'); }
-  public async recordFeedPurchase(data: { feed_item_id?: string; feed_id?: string; quantity?: number; cost?: number; total_amount?: number; date?: string; purchase_date?: string; notes?: string; [key: string]: any }): Promise<FeedTransaction> { const feedId = data.feed_item_id || data.feed_id; const quantity = data.quantity || 0; if (quantity <= 0) throw new Error('Purchase quantity must be greater than zero.'); const feed = (await this.getFeedItems()).find((item) => item.id === feedId); if (!feed) throw new Error('Feed item not found'); const date = data.date || data.purchase_date || new Date().toISOString().slice(0, 10); const cost = data.cost ?? data.total_amount ?? 0; await this.updateFeedItem(feed.id, { quantity: feed.quantity + quantity }); const result = await this.insert<FeedTransaction>('feed_transactions', { ...data, feed_item_id: feed.id, type: 'purchase', quantity, cost, date, recorded_by: this.getCurrentUser().id }); if (cost > 0) await this.addExpense({ date, category: 'Feed', amount: cost, description: `Feed Purchase: ${feed.name} (${quantity} ${feed.unit})`, supplier_payee: data.supplier || feed.supplier || 'Feed Mill', payment_method: data.payment_method || 'Bank Transfer', notes: data.notes }); return result; }
-  public async recordFeedUsage(data: { feed_item_id?: string; feed_id?: string; quantity?: number; quantity_used?: number; date?: string; usage_date?: string; notes?: string; [key: string]: any }): Promise<FeedTransaction> { const feedId = data.feed_item_id || data.feed_id; const quantity = data.quantity ?? data.quantity_used ?? 0; if (quantity <= 0) throw new Error('Feed usage quantity must be greater than zero.'); const feed = (await this.getFeedItems()).find((item) => item.id === feedId); if (!feed) throw new Error('Feed item not found'); if (feed.quantity < quantity) throw new Error(`Insufficient feed in stock. Available: ${feed.quantity} ${feed.unit}.`); const date = data.date || data.usage_date || new Date().toISOString().slice(0, 10); await this.updateFeedItem(feed.id, { quantity: feed.quantity - quantity }); return this.insert<FeedTransaction>('feed_transactions', { ...data, feed_item_id: feed.id, type: 'usage', quantity, cost: Number((quantity * feed.cost_per_unit).toFixed(2)), date, recorded_by: this.getCurrentUser().id }); }
+
+  public async recordFeedPurchase(data: { feed_item_id?: string; feed_id?: string; quantity?: number; cost?: number; total_amount?: number; unit_price?: number; date?: string; purchase_date?: string; notes?: string; supplier?: string; invoice_number?: string; payment_method?: string; [key: string]: any }): Promise<FeedTransaction> {
+    const feedId = data.feed_item_id || data.feed_id;
+    const quantity = data.quantity || 0;
+    if (quantity <= 0) throw new Error('Purchase quantity must be greater than zero.');
+    const feed = (await this.getFeedItems()).find((item) => item.id === feedId);
+    if (!feed) throw new Error('Feed item not found');
+    const date = data.date || data.purchase_date || new Date().toISOString().slice(0, 10);
+    const cost = data.cost ?? data.total_amount ?? 0;
+    const supplier = data.supplier || feed.supplier || 'Feed Mill';
+    // feed_transactions only has: feed_item_id, feed_name, type, quantity, cost, date, notes, recorded_by.
+    // Extra purchase details that don't have their own column get folded into notes instead of
+    // being spread into the insert (which previously caused "column not found" errors).
+    const noteParts = [
+      `Supplier: ${supplier}`,
+      data.invoice_number ? `Invoice: ${data.invoice_number}` : null,
+      data.payment_method ? `Payment: ${data.payment_method}` : null,
+      data.unit_price != null ? `Rate: ${data.unit_price}/unit` : null,
+      data.notes,
+    ].filter(Boolean);
+    await this.updateFeedItem(feed.id, { quantity: feed.quantity + quantity });
+    const result = await this.insert<FeedTransaction>('feed_transactions', {
+      feed_item_id: feed.id,
+      feed_name: feed.name,
+      type: 'purchase',
+      quantity,
+      cost,
+      date,
+      notes: noteParts.join(' | '),
+      recorded_by: this.getCurrentUser().id,
+    });
+    if (cost > 0) await this.addExpense({ date, category: 'Feed', amount: cost, description: `Feed Purchase: ${feed.name} (${quantity} ${feed.unit})`, supplier_payee: supplier, payment_method: (data.payment_method as Expense['payment_method']) || 'Bank Transfer', notes: data.notes });
+    return result;
+  }
+
+  public async recordFeedUsage(data: { feed_item_id?: string; feed_id?: string; quantity?: number; quantity_used?: number; date?: string; usage_date?: string; notes?: string; pen_location?: string; [key: string]: any }): Promise<FeedTransaction> {
+    const feedId = data.feed_item_id || data.feed_id;
+    const quantity = data.quantity ?? data.quantity_used ?? 0;
+    if (quantity <= 0) throw new Error('Feed usage quantity must be greater than zero.');
+    const feed = (await this.getFeedItems()).find((item) => item.id === feedId);
+    if (!feed) throw new Error('Feed item not found');
+    if (feed.quantity < quantity) throw new Error(`Insufficient feed in stock. Available: ${feed.quantity} ${feed.unit}.`);
+    const date = data.date || data.usage_date || new Date().toISOString().slice(0, 10);
+    const noteParts = [
+      data.pen_location ? `Pen: ${data.pen_location}` : null,
+      data.notes,
+    ].filter(Boolean);
+    await this.updateFeedItem(feed.id, { quantity: feed.quantity - quantity });
+    return this.insert<FeedTransaction>('feed_transactions', {
+      feed_item_id: feed.id,
+      feed_name: feed.name,
+      type: 'usage',
+      quantity,
+      cost: Number((quantity * feed.cost_per_unit).toFixed(2)),
+      date,
+      notes: noteParts.join(' | '),
+      recorded_by: this.getCurrentUser().id,
+    });
+  }
 
   public getInventoryItems(): Promise<InventoryItem[]> { return this.list<InventoryItem>('inventory_items'); }
   public getGeneralInventory(): Promise<InventoryItem[]> { return this.getInventoryItems(); }
