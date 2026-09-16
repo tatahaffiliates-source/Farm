@@ -80,11 +80,11 @@ export const LivestockView: React.FC<LivestockViewProps> = ({
     return matchesSearch && matchesStatus && matchesBreed && matchesSex;
   });
 
-  const handleDeletePig = () => {
+  const handleDeletePig = async () => {
     if (!pigToDelete) return;
     setIsDeleting(true);
     try {
-      db.deletePig(pigToDelete.id);
+      await db.deletePig(pigToDelete.id);
       success(`Pig ${pigToDelete.pig_id} removed from register.`);
       setPigToDelete(null);
       onRefresh();

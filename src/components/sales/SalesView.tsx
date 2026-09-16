@@ -6,8 +6,11 @@ import { SearchBar } from '../common/SearchBar';
 import { StatusBadge } from '../common/StatusBadge';
 import { EmptyState } from '../common/EmptyState';
 import { RecordSaleModal } from './RecordSaleModal';
-import { TrendingUp, Users, Scale, DollarSign, Plus, FileText } from 'lucide-react';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { TrendingUp, Users, Scale, DollarSign, Plus, FileText, Edit2, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { db } from '../../services/db';
+import { useToast } from '../common/Toast';
 
 interface SalesViewProps {
   sales: Sale[];
@@ -18,11 +21,30 @@ interface SalesViewProps {
 
 export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, onRefresh }) => {
   const { role } = useAuth();
+  const { success, error } = useToast();
   const isWorker = role === 'worker';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [isRecordSaleModalOpen, setIsRecordSaleModalOpen] = useState(false);
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteSale = async () => {
+    if (!saleToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteSale(saleToDelete.id);
+      success('Sale deleted. The animal has been returned to the active herd.');
+      setSaleToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete sale.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Financial aggregates
   const totalRevenue = sales.reduce((sum, s) => sum + s.total_amount, 0);
@@ -35,7 +57,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
   // Filters
   const filteredSales = sales.filter((s) => {
     const matchesSearch =
-      s.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.customer_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.pig_tag ?? s.pig_code ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.notes && s.notes.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -55,7 +77,10 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
             ? {
                 label: 'Record Livestock Sale',
                 icon: Plus,
-                onClick: () => setIsRecordSaleModalOpen(true),
+                onClick: () => {
+                  setEditingSale(null);
+                  setIsRecordSaleModalOpen(true);
+                },
               }
             : undefined
         }
@@ -128,6 +153,7 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
                   <th className="py-3 px-4 text-right">Invoice Amount</th>
                   <th className="py-3 px-4">Payment</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -149,6 +175,35 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
                     <td className="py-3 px-4">
                       <StatusBadge status={sale.payment_status} />
                     </td>
+
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {!isWorker && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSale(sale);
+                              setIsRecordSaleModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+                            title="Edit Sale"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => setSaleToDelete(sale)}
+                            className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Delete Sale"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -163,7 +218,10 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
               !isWorker
                 ? {
                     label: 'Record Livestock Sale',
-                    onClick: () => setIsRecordSaleModalOpen(true),
+                    onClick: () => {
+                      setEditingSale(null);
+                      setIsRecordSaleModalOpen(true);
+                    },
                   }
                 : undefined
             }
@@ -171,11 +229,31 @@ export const SalesView: React.FC<SalesViewProps> = ({ sales, customers, pigs, on
         )}
       </div>
 
-      {/* Sale Modal */}
+      {/* Record / Edit Sale Modal */}
       <RecordSaleModal
         isOpen={isRecordSaleModalOpen}
-        onClose={() => setIsRecordSaleModalOpen(false)}
+        onClose={() => {
+          setIsRecordSaleModalOpen(false);
+          setEditingSale(null);
+        }}
+        saleToEdit={editingSale}
         onSuccess={onRefresh}
+      />
+
+      {/* Confirm Deletion Dialog */}
+      <ConfirmDialog
+        isOpen={!!saleToDelete}
+        onClose={() => setSaleToDelete(null)}
+        onConfirm={handleDeleteSale}
+        title="Delete this sale invoice?"
+        message={`This permanently deletes the sale of ${
+          saleToDelete?.pig_tag ?? saleToDelete?.pig_code ?? 'this animal'
+        } to ${saleToDelete?.customer_name ?? 'the buyer'} ($${
+          saleToDelete?.total_amount?.toLocaleString('en-US') ?? 0
+        }). The animal will be set back to Active in the herd. Revenue reports will change.`}
+        confirmLabel="Delete Sale"
+        isLoading={isDeleting}
+        isDestructive
       />
     </div>
   );

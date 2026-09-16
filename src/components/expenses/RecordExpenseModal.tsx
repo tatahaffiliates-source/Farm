@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ExpenseCategory, PaymentMethod } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { Expense, ExpenseCategory, PaymentMethod } from '../../types';
 import { Modal } from '../common/Modal';
 import { FormField } from '../common/FormField';
 import { db } from '../../services/db';
@@ -9,12 +9,14 @@ interface RecordExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  expenseToEdit?: Expense | null;
 }
 
 export const RecordExpenseModal: React.FC<RecordExpenseModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  expenseToEdit,
 }) => {
   const { success, error } = useToast();
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
@@ -26,7 +28,28 @@ export const RecordExpenseModal: React.FC<RecordExpenseModalProps> = ({
   const [receiptNumber, setReceiptNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    if (expenseToEdit) {
+      setExpenseDate(expenseToEdit.expense_date || expenseToEdit.date);
+      setCategory(expenseToEdit.category);
+      setAmount(String(expenseToEdit.amount));
+      setDescription(expenseToEdit.description || '');
+      setPayee(expenseToEdit.payee || expenseToEdit.supplier_payee || '');
+      setPaymentMethod(expenseToEdit.payment_method as PaymentMethod);
+      setReceiptNumber(expenseToEdit.receipt_number || '');
+    } else {
+      setExpenseDate(new Date().toISOString().split('T')[0]);
+      setCategory('Feed');
+      setAmount('1500');
+      setDescription('');
+      setPayee('');
+      setPaymentMethod('UPI');
+      setReceiptNumber('');
+    }
+  }, [expenseToEdit, isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) {
@@ -40,7 +63,7 @@ export const RecordExpenseModal: React.FC<RecordExpenseModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      db.addExpense({
+      const payload = {
         date: expenseDate,
         expense_date: expenseDate,
         category,
@@ -50,15 +73,18 @@ export const RecordExpenseModal: React.FC<RecordExpenseModalProps> = ({
         supplier_payee: payee.trim() || undefined,
         payment_method: paymentMethod,
         receipt_number: receiptNumber.trim() || undefined,
-      });
+      };
 
-      success(`Expense of $${amountNum.toLocaleString('en-US')} logged under ${category}.`);
+      if (expenseToEdit) {
+        await db.updateExpense(expenseToEdit.id, payload as any);
+        success(`Expense updated ($${amountNum.toLocaleString('en-US')}).`);
+      } else {
+        await db.addExpense(payload as any);
+        success(`Expense of $${amountNum.toLocaleString('en-US')} logged under ${category}.`);
+      }
+
       onSuccess();
       onClose();
-      // Reset
-      setDescription('');
-      setPayee('');
-      setAmount('1500');
     } catch (err: any) {
       error(err.message || 'Failed to record expense.');
     } finally {
@@ -70,7 +96,7 @@ export const RecordExpenseModal: React.FC<RecordExpenseModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Record Farm Operating Expense"
+      title={expenseToEdit ? `Edit Expense (${expenseToEdit.expense_date || expenseToEdit.date})` : 'Record Farm Operating Expense'}
       subtitle="Track outflows for feed, veterinary care, wages, utilities, equipment, and maintenance"
       maxWidth="md"
     >
@@ -181,9 +207,9 @@ export const RecordExpenseModal: React.FC<RecordExpenseModalProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer"
+            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer disabled:opacity-60"
           >
-            {isSubmitting ? 'Recording...' : 'Save Farm Expense'}
+            {isSubmitting ? 'Saving...' : expenseToEdit ? 'Update Expense' : 'Save Farm Expense'}
           </button>
         </div>
       </form>

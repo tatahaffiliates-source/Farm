@@ -7,8 +7,11 @@ import { EmptyState } from '../common/EmptyState';
 import { FeedPurchaseModal } from './FeedPurchaseModal';
 import { FeedUsageModal } from './FeedUsageModal';
 import { AddInventoryModal } from './AddInventoryModal';
-import { Wheat, ShoppingCart, Utensils, AlertTriangle, Plus, Package } from 'lucide-react';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { Wheat, ShoppingCart, Utensils, AlertTriangle, Plus, Package, Edit2, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { db } from '../../services/db';
+import { useToast } from '../common/Toast';
 
 interface FeedViewProps {
   feedItems: FeedItem[];
@@ -24,6 +27,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   onRefresh,
 }) => {
   const { role } = useAuth();
+  const { success, error } = useToast();
   const isWorker = role === 'worker';
 
   const [activeSubTab, setActiveSubTab] = useState<'rations' | 'purchases' | 'supplies'>('rations');
@@ -31,6 +35,63 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
   const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
   const [isAddInventoryModalOpen, setIsAddInventoryModalOpen] = useState(false);
+  const [editingFeed, setEditingFeed] = useState<FeedItem | null>(null);
+  const [feedToDelete, setFeedToDelete] = useState<FeedItem | null>(null);
+  const [editingSupply, setEditingSupply] = useState<GeneralInventoryItem | null>(null);
+  const [supplyToDelete, setSupplyToDelete] = useState<GeneralInventoryItem | null>(null);
+  const [purchaseToDelete, setPurchaseToDelete] = useState<FeedPurchase | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const openNewItemModal = () => {
+    setEditingFeed(null);
+    setEditingSupply(null);
+    setIsAddInventoryModalOpen(true);
+  };
+
+  const handleDeleteFeed = async () => {
+    if (!feedToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteFeedItem(feedToDelete.id);
+      success(`Feed ration "${feedToDelete.name}" deleted.`);
+      setFeedToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete feed ration.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteSupply = async () => {
+    if (!supplyToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteInventoryItem(supplyToDelete.id);
+      success(`Supply item "${supplyToDelete.name ?? supplyToDelete.item_name}" deleted.`);
+      setSupplyToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete supply item.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeletePurchase = async () => {
+    if (!purchaseToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteFeedTransaction(purchaseToDelete.id);
+      success('Purchase deleted and feed stock adjusted back.');
+      setPurchaseToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete purchase.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Total stock in kg
   const totalKgStock = feedItems.reduce(
@@ -83,7 +144,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         {!isWorker && (
           <button
             type="button"
-            onClick={() => setIsAddInventoryModalOpen(true)}
+            onClick={openNewItemModal}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-lg border border-stone-300 bg-white text-stone-700 hover:bg-stone-50 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -249,6 +310,32 @@ export const FeedView: React.FC<FeedViewProps> = ({
                                 Restock
                               </button>
                             )}
+
+                            {!isWorker && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingSupply(null);
+                                  setEditingFeed(feed);
+                                  setIsAddInventoryModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+                                title="Edit Feed Ration"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {role === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => setFeedToDelete(feed)}
+                                className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Delete Feed Ration"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -264,7 +351,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
               description="Register your starter, grower, finisher, and lactation feeds."
               action={{
                 label: 'Add Feed Diet',
-                onClick: () => setIsAddInventoryModalOpen(true),
+                onClick: openNewItemModal,
               }}
             />
           )}
@@ -287,6 +374,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                     <th className="py-3 px-4 text-right">Total Outlay</th>
                     <th className="py-3 px-4">Payment</th>
                     <th className="py-3 px-4">Invoice #</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -305,6 +393,19 @@ export const FeedView: React.FC<FeedViewProps> = ({
                       <td className="py-3 px-4 text-stone-600">{purchase.payment_method ?? '-'}</td>
                       <td className="py-3 px-4 font-mono text-xs text-stone-500">
                         {purchase.invoice_number || '-'}
+                      </td>
+
+                      <td className="py-3 px-4 text-right">
+                        {role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => setPurchaseToDelete(purchase)}
+                            className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Delete Purchase Entry"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -339,6 +440,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                     <th className="py-3 px-4">Min Stock</th>
                     <th className="py-3 px-4">Storage Location</th>
                     <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -370,6 +472,36 @@ export const FeedView: React.FC<FeedViewProps> = ({
                             </span>
                           )}
                         </td>
+
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {!isWorker && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingFeed(null);
+                                  setEditingSupply(item);
+                                  setIsAddInventoryModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+                                title="Edit Supply Item"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {role === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => setSupplyToDelete(item)}
+                                className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Delete Supply Item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -383,7 +515,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
               description="Keep track of sanitation lime, disinfectants, heating lamps, and farm tools."
               action={{
                 label: 'Add Supply Item',
-                onClick: () => setIsAddInventoryModalOpen(true),
+                onClick: openNewItemModal,
               }}
             />
           )}
@@ -407,8 +539,52 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
       <AddInventoryModal
         isOpen={isAddInventoryModalOpen}
-        onClose={() => setIsAddInventoryModalOpen(false)}
+        onClose={() => {
+          setIsAddInventoryModalOpen(false);
+          setEditingFeed(null);
+          setEditingSupply(null);
+        }}
+        feedToEdit={editingFeed}
+        inventoryToEdit={editingSupply}
         onSuccess={onRefresh}
+      />
+
+      {/* Confirm feed ration deletion */}
+      <ConfirmDialog
+        isOpen={!!feedToDelete}
+        onClose={() => setFeedToDelete(null)}
+        onConfirm={handleDeleteFeed}
+        title={`Delete feed ration "${feedToDelete?.name}"?`}
+        message={`This permanently removes ${feedToDelete?.name} and its stock levels. Rations that already have purchase or usage history cannot be deleted.`}
+        confirmLabel="Delete Ration"
+        isLoading={isDeleting}
+        isDestructive
+      />
+
+      {/* Confirm supply item deletion */}
+      <ConfirmDialog
+        isOpen={!!supplyToDelete}
+        onClose={() => setSupplyToDelete(null)}
+        onConfirm={handleDeleteSupply}
+        title={`Delete "${supplyToDelete?.name ?? supplyToDelete?.item_name}"?`}
+        message="This permanently removes the supply item from your farm inventory."
+        confirmLabel="Delete Item"
+        isLoading={isDeleting}
+        isDestructive
+      />
+
+      {/* Confirm purchase deletion */}
+      <ConfirmDialog
+        isOpen={!!purchaseToDelete}
+        onClose={() => setPurchaseToDelete(null)}
+        onConfirm={handleDeletePurchase}
+        title="Delete this feed purchase?"
+        message={`This deletes the purchase of ${purchaseToDelete?.quantity ?? 0} ${
+          purchaseToDelete?.unit ?? 'kg'
+        } of ${purchaseToDelete?.feed_name ?? 'feed'} and subtracts that quantity back out of stock. The matching row in Expenses is not removed automatically — delete it there if you no longer want it.`}
+        confirmLabel="Delete Purchase"
+        isLoading={isDeleting}
+        isDestructive
       />
     </div>
   );

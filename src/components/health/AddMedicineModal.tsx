@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MedicineCategory } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { Medicine, MedicineCategory } from '../../types';
 import { Modal } from '../common/Modal';
 import { FormField } from '../common/FormField';
 import { db } from '../../services/db';
@@ -9,12 +9,14 @@ interface AddMedicineModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  medicineToEdit?: Medicine | null;
 }
 
 export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  medicineToEdit,
 }) => {
   const { success, error } = useToast();
   const [name, setName] = useState('');
@@ -25,6 +27,27 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
   const [expiryDate, setExpiryDate] = useState('');
   const [costPerUnit, setCostPerUnit] = useState('350');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (medicineToEdit) {
+      setName(medicineToEdit.name || '');
+      setCategory((medicineToEdit.category || 'Antibiotic') as MedicineCategory);
+      setUnit(medicineToEdit.unit || 'vials');
+      setCurrentStock(String(medicineToEdit.current_stock ?? medicineToEdit.quantity ?? 0));
+      setMinStock(String(medicineToEdit.min_stock_level ?? medicineToEdit.min_stock ?? 0));
+      setExpiryDate(medicineToEdit.expiry_date || '');
+      setCostPerUnit(String(medicineToEdit.cost_per_unit ?? medicineToEdit.cost ?? 0));
+    } else {
+      setName('');
+      setCategory('Antibiotic');
+      setUnit('vials');
+      setCurrentStock('10');
+      setMinStock('5');
+      setExpiryDate('');
+      setCostPerUnit('350');
+    }
+  }, [medicineToEdit, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +62,7 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
       const min = parseFloat(minStock) || 0;
       const cost = parseFloat(costPerUnit) || 0;
 
-      await db.addMedicine({
+      const payload = {
         name: name.trim(),
         category,
         unit: unit.trim(),
@@ -50,17 +73,20 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
         expiry_date: expiryDate || new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0],
         cost,
         cost_per_unit: cost,
-      });
+      };
 
-      success(`Medicine ${name} added to pharmacy inventory.`);
+      if (medicineToEdit) {
+        await db.updateMedicine(medicineToEdit.id, payload as any);
+        success(`Medicine ${name} updated.`);
+      } else {
+        await db.addMedicine(payload as any);
+        success(`Medicine ${name} added to pharmacy inventory.`);
+      }
+
       onSuccess();
       onClose();
-      // Reset
-      setName('');
-      setCurrentStock('10');
-      setMinStock('5');
     } catch (err: any) {
-      error(err.message || 'Failed to add medicine.');
+      error(err.message || 'Failed to save medicine.');
     } finally {
       setIsSubmitting(false);
     }
@@ -70,7 +96,7 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Add Medicine / Vaccine to Pharmacy"
+      title={medicineToEdit ? `Edit Medicine: ${medicineToEdit.name}` : 'Add Medicine / Vaccine to Pharmacy'}
       subtitle="Track veterinary inventory, expiry alerts, and minimum reorder thresholds"
       maxWidth="md"
     >
@@ -116,7 +142,7 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-          <FormField label="Initial Stock" required>
+          <FormField label={medicineToEdit ? 'Current Stock' : 'Initial Stock'} required>
             <input
               type="number"
               min="0"
@@ -171,9 +197,9 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer"
+            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer disabled:opacity-60"
           >
-            {isSubmitting ? 'Saving...' : 'Add Medicine to Stock'}
+            {isSubmitting ? 'Saving...' : medicineToEdit ? 'Update Medicine' : 'Add Medicine to Stock'}
           </button>
         </div>
       </form>

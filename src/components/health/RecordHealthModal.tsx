@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Pig, Medicine, HealthRecordType } from '../../types';
+import { Pig, Medicine, HealthRecord, HealthRecordType } from '../../types';
 import { Modal } from '../common/Modal';
 import { FormField } from '../common/FormField';
 import { db } from '../../services/db';
@@ -10,6 +10,7 @@ interface RecordHealthModalProps {
   onClose: () => void;
   onSuccess: () => void;
   preselectedPigId?: string;
+  recordToEdit?: HealthRecord | null;
 }
 
 export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
@@ -17,6 +18,7 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
   onClose,
   onSuccess,
   preselectedPigId,
+  recordToEdit,
 }) => {
   const { success, error } = useToast();
   const [pigs, setPigs] = useState<Pig[]>([]);
@@ -42,25 +44,62 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
 
     void Promise.all([db.getPigs(), db.getMedicines()]).then(([allPigsData, allMedsData]) => {
       if (isCancelled) return;
-      const allPigs = allPigsData.filter((p) => p.status !== 'Sold' && p.status !== 'Dead');
+      // When editing, the pig on the record may already be Sold/Dead, so keep it in the list.
+      const allPigs = allPigsData.filter(
+        (p) => (p.status !== 'Sold' && p.status !== 'Dead') || p.id === recordToEdit?.pig_id
+      );
       setPigs(allPigs);
       setMedicines(allMedsData);
 
-      if (preselectedPigId) {
+      if (recordToEdit) {
+        setPigId(recordToEdit.pig_id);
+        setMedicineId(
+          recordToEdit.medicine_id ||
+            allMedsData.find((m) => m.name === recordToEdit.medicine_name)?.id ||
+            ''
+        );
+      } else if (preselectedPigId) {
         setPigId(preselectedPigId);
-      } else if (allPigs.length > 0) {
-        setPigId(allPigs[0].id);
-      }
-
-      if (allMedsData.length > 0) {
-        setMedicineId(allMedsData[0].id);
+        if (allMedsData.length > 0) setMedicineId(allMedsData[0].id);
+      } else {
+        if (allPigs.length > 0) setPigId(allPigs[0].id);
+        if (allMedsData.length > 0) setMedicineId(allMedsData[0].id);
       }
     });
 
     return () => {
       isCancelled = true;
     };
-  }, [isOpen, preselectedPigId]);
+  }, [isOpen, preselectedPigId, recordToEdit]);
+
+  // Load the rest of the form from the record being edited, or reset it for a new entry.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (recordToEdit) {
+      setRecordDate(recordToEdit.record_date);
+      setType(recordToEdit.type);
+      setCondition(recordToEdit.condition || '');
+      setDosage(recordToEdit.dosage || '');
+      setRoute(recordToEdit.route_of_admin || 'Intramuscular');
+      setVeterinarian(recordToEdit.veterinarian || '');
+      setCost(String(recordToEdit.cost ?? 0));
+      setFollowUpDate(recordToEdit.follow_up_date || '');
+      setNotes(recordToEdit.notes || '');
+      setDeductStockQty(0);
+    } else {
+      setRecordDate(new Date().toISOString().split('T')[0]);
+      setType('Vaccination');
+      setCondition('');
+      setDosage('2 ml');
+      setRoute('Intramuscular');
+      setVeterinarian('Dr. Anand Rao (B.V.Sc)');
+      setCost('0');
+      setFollowUpDate('');
+      setOutcome('Resolved');
+      setNotes('');
+      setDeductStockQty(1);
+    }
+  }, [recordToEdit, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +119,43 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
 
       const costNum = parseFloat(cost) || 0;
 
+      // ---- EDIT MODE ----------------------------------------------------
+      // Only the record itself is rewritten. Stock deduction and the expense
+      // row were already created when the record was first saved, so they are
+      // deliberately not repeated here (that would double-count them).
+      if (recordToEdit) {
+        await db.updateHealthRecord(recordToEdit.id, {
+          pig_id: pigId,
+          pig_tag: selectedPig?.pig_id || recordToEdit.pig_tag,
+          record_date: recordDate,
+          type,
+          condition: condition.trim(),
+          medicine_id: selectedMed?.id || undefined,
+          medicine_name: selectedMed?.name || undefined,
+          dosage: dosage.trim() || undefined,
+          route_of_admin: route,
+          veterinarian: veterinarian.trim() || undefined,
+          cost: costNum,
+          follow_up_date: followUpDate || undefined,
+          treatment: `Administered ${selectedMed?.name || 'medication'} (${dosage}) via ${route}.`,
+          notes: notes.trim() || undefined,
+        });
+
+        if (outcome === 'Under Treatment') {
+          await db.updatePig(pigId, { status: 'Sick' });
+        } else if (outcome === 'Died') {
+          await db.updatePig(pigId, { status: 'Dead' });
+        } else if (selectedPig?.status === 'Sick' && outcome === 'Resolved') {
+          await db.updatePig(pigId, { status: 'Active' });
+        }
+
+        success(`Health log for ${selectedPig?.pig_id} updated.`);
+        onSuccess();
+        onClose();
+        return;
+      }
+
+      // ---- CREATE MODE --------------------------------------------------
       await db.addHealthRecord({
         pig_id: pigId,
         pig_tag: selectedPig?.pig_id || 'Pig',
@@ -137,7 +213,11 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Record Health Treatment & Vaccination"
+      title={
+        recordToEdit
+          ? `Edit Health Record: ${recordToEdit.pig_tag || ''} (${recordToEdit.record_date})`
+          : 'Record Health Treatment & Vaccination'
+      }
       subtitle="Logs veterinary events, updates livestock status, and deducts medicine inventory"
       maxWidth="lg"
     >
@@ -200,8 +280,13 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
         {/* Medicine Inventory Link */}
         <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-3">
           <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-            Medicine Dispensation & Inventory Deduction
+            {recordToEdit ? 'Medicine Dispensation' : 'Medicine Dispensation & Inventory Deduction'}
           </h4>
+          {recordToEdit && (
+            <p className="text-[11px] text-stone-500 -mt-1">
+              Editing does not re-deduct medicine stock or re-log the expense from the original entry.
+            </p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <FormField label="Select Medicine">
               <select
@@ -310,9 +395,9 @@ export const RecordHealthModal: React.FC<RecordHealthModalProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer"
+            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer disabled:opacity-60"
           >
-            {isSubmitting ? 'Saving...' : 'Save Health Record'}
+            {isSubmitting ? 'Saving...' : recordToEdit ? 'Update Health Record' : 'Save Health Record'}
           </button>
         </div>
       </form>

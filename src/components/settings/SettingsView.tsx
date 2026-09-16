@@ -19,6 +19,11 @@ interface SettingsViewProps {
   onRefresh: () => void;
 }
 
+// If your FarmSettings object stores the farm's unique id under a
+// different key than "farm_id" (e.g. "id"), change ONLY this line.
+const getFarmId = (settings: FarmSettings): string | undefined =>
+  (settings as any).farm_id || (settings as any).id;
+
 export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, section = 'settings', onRefresh }) => {
   const { role } = useAuth();
   const { success, error } = useToast();
@@ -180,10 +185,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
   // Export all farm data as a downloadable JSON file
   const handleExportData = async () => {
     if (!supabase) return;
+    const farmId = getFarmId(settings);
+    if (!farmId) {
+      error('Could not determine your farm ID. Check the getFarmId() helper at the top of this file.');
+      return;
+    }
     setIsExporting(true);
     try {
       const { data, error: exportError } = await supabase.rpc('export_farm_data', {
-        target_farm_id: (settings as any).farm_id,
+        target_farm_id: farmId,
       });
       if (exportError) throw exportError;
 
@@ -207,14 +217,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
   // Permanently erase all farm data (admin only, requires typed confirmation)
   const handleResetFarmData = async () => {
     if (!supabase) return;
-    if (resetConfirmText.trim() !== settings.farm_name) {
-      error('Farm name does not match — reset cancelled.');
+    if (resetConfirmText.trim().toUpperCase() !== 'DELETE') {
+      error('Please type DELETE to confirm.');
+      return;
+    }
+    const farmId = getFarmId(settings);
+    if (!farmId) {
+      error('Could not determine your farm ID. Check the getFarmId() helper at the top of this file.');
       return;
     }
     setIsResetting(true);
     try {
       const { error: resetError } = await supabase.rpc('reset_farm_data', {
-        target_farm_id: (settings as any).farm_id,
+        target_farm_id: farmId,
       });
       if (resetError) throw resetError;
       success('All farm data has been erased.');
@@ -725,13 +740,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
       >
         <div className="space-y-4">
           <p className="text-sm text-stone-700">
-            Type <span className="font-mono font-bold">{settings.farm_name}</span> below to confirm.
+            Type <span className="font-mono font-bold">DELETE</span> below to confirm.
           </p>
           <input
             type="text"
             value={resetConfirmText}
             onChange={(e) => setResetConfirmText(e.target.value)}
-            placeholder={settings.farm_name}
+            placeholder="DELETE"
             className="w-full px-3 py-2 text-sm rounded-lg border border-rose-300 text-stone-900"
           />
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-200">
@@ -745,7 +760,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
             <button
               type="button"
               onClick={handleResetFarmData}
-              disabled={isResetting || resetConfirmText.trim() !== settings.farm_name}
+              disabled={isResetting || resetConfirmText.trim().toUpperCase() !== 'DELETE'}
               className="px-5 py-2 text-sm font-semibold rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isResetting ? 'Erasing…' : 'Permanently Erase Everything'}

@@ -6,9 +6,11 @@ import { SearchBar } from '../common/SearchBar';
 import { EmptyState } from '../common/EmptyState';
 import { RecordHealthModal } from './RecordHealthModal';
 import { AddMedicineModal } from './AddMedicineModal';
-import { Activity, AlertTriangle, ShieldAlert, Plus, Pill, Syringe } from 'lucide-react';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { Activity, AlertTriangle, ShieldAlert, Plus, Pill, Syringe, Edit2, Trash2 } from 'lucide-react';
 import { db } from '../../services/db';
 import { useToast } from '../common/Toast';
+import { useAuth } from '../../context/AuthContext';
 
 interface HealthViewProps {
   healthRecords: HealthRecord[];
@@ -24,11 +26,48 @@ export const HealthView: React.FC<HealthViewProps> = ({
   onRefresh,
 }) => {
   const { success, error } = useToast();
+  const { role } = useAuth();
+  const isWorker = role === 'worker';
   const [activeTab, setActiveTab] = useState<'logs' | 'medicines'>('logs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string>('All');
   const [isRecordHealthModalOpen, setIsRecordHealthModalOpen] = useState(false);
   const [isAddMedicineModalOpen, setIsAddMedicineModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<HealthRecord | null>(null);
+  const [recordToDelete, setRecordToDelete] = useState<HealthRecord | null>(null);
+  const [editingMedicine, setEditingMedicine] = useState<Medicine | null>(null);
+  const [medicineToDelete, setMedicineToDelete] = useState<Medicine | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteRecord = async () => {
+    if (!recordToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteHealthRecord(recordToDelete.id);
+      success('Health record deleted.');
+      setRecordToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete health record.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteMedicine = async () => {
+    if (!medicineToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteMedicine(medicineToDelete.id);
+      success(`${medicineToDelete.name} removed from pharmacy.`);
+      setMedicineToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete medicine.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Sick pigs count
   const sickPigsCount = pigs.filter((p) => p.status === 'Sick').length;
@@ -93,12 +132,18 @@ export const HealthView: React.FC<HealthViewProps> = ({
         action={{
           label: 'Log Health Event',
           icon: Plus,
-          onClick: () => setIsRecordHealthModalOpen(true),
+          onClick: () => {
+            setEditingRecord(null);
+            setIsRecordHealthModalOpen(true);
+          },
         }}
         secondaryAction={{
           label: 'Add Medicine Stock',
           icon: Pill,
-          onClick: () => setIsAddMedicineModalOpen(true),
+          onClick: () => {
+            setEditingMedicine(null);
+            setIsAddMedicineModalOpen(true);
+          },
         }}
       />
 
@@ -209,6 +254,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
                     <th className="py-3 px-4">Veterinarian</th>
                     <th className="py-3 px-4 text-right">Cost</th>
                     <th className="py-3 px-4">Follow-up</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -247,6 +293,35 @@ export const HealthView: React.FC<HealthViewProps> = ({
                         {log.cost > 0 ? `$${log.cost}` : '$0'}
                       </td>
                       <td className="py-3 px-4 text-stone-500">{log.follow_up_date || '-'}</td>
+
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {!isWorker && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingRecord(log);
+                                setIsRecordHealthModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+                              title="Edit Health Record"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {role === 'admin' && (
+                            <button
+                              type="button"
+                              onClick={() => setRecordToDelete(log)}
+                              className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete Health Record"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -259,7 +334,10 @@ export const HealthView: React.FC<HealthViewProps> = ({
               description="Record health observations, vaccinations, or veterinary treatments."
               action={{
                 label: 'Log Health Event',
-                onClick: () => setIsRecordHealthModalOpen(true),
+                onClick: () => {
+                  setEditingRecord(null);
+                  setIsRecordHealthModalOpen(true);
+                },
               }}
             />
           )}
@@ -281,7 +359,7 @@ export const HealthView: React.FC<HealthViewProps> = ({
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4">Unit Cost</th>
                     <th className="py-3 px-4">Expiry Date</th>
-                    <th className="py-3 px-4 text-right">Quick Restock</th>
+                    <th className="py-3 px-4 text-right">Restock & Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
@@ -336,6 +414,31 @@ export const HealthView: React.FC<HealthViewProps> = ({
                             >
                               +10 {med.unit}
                             </button>
+
+                            {!isWorker && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingMedicine(med);
+                                  setIsAddMedicineModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+                                title="Edit Medicine"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {role === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => setMedicineToDelete(med)}
+                                className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Delete Medicine"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -351,25 +454,62 @@ export const HealthView: React.FC<HealthViewProps> = ({
               description="Register veterinary vaccines, antibiotics, and vitamins in your farm pharmacy."
               action={{
                 label: 'Add Medicine',
-                onClick: () => setIsAddMedicineModalOpen(true),
+                onClick: () => {
+                  setEditingMedicine(null);
+                  setIsAddMedicineModalOpen(true);
+                },
               }}
             />
           )}
         </div>
       )}
 
-      {/* Record Health Event Modal */}
+      {/* Record / Edit Health Event Modal */}
       <RecordHealthModal
         isOpen={isRecordHealthModalOpen}
-        onClose={() => setIsRecordHealthModalOpen(false)}
+        onClose={() => {
+          setIsRecordHealthModalOpen(false);
+          setEditingRecord(null);
+        }}
+        recordToEdit={editingRecord}
         onSuccess={onRefresh}
       />
 
-      {/* Add Medicine Modal */}
+      {/* Add / Edit Medicine Modal */}
       <AddMedicineModal
         isOpen={isAddMedicineModalOpen}
-        onClose={() => setIsAddMedicineModalOpen(false)}
+        onClose={() => {
+          setIsAddMedicineModalOpen(false);
+          setEditingMedicine(null);
+        }}
+        medicineToEdit={editingMedicine}
         onSuccess={onRefresh}
+      />
+
+      {/* Confirm health record deletion */}
+      <ConfirmDialog
+        isOpen={!!recordToDelete}
+        onClose={() => setRecordToDelete(null)}
+        onConfirm={handleDeleteRecord}
+        title="Delete this health record?"
+        message={`This permanently deletes the ${recordToDelete?.type ?? ''} log for ${
+          recordToDelete?.pig_tag ?? 'this pig'
+        } dated ${recordToDelete?.record_date ?? ''}. Any medicine stock already deducted and any expense already logged for it stay as they are.`}
+        confirmLabel="Delete Record"
+        isLoading={isDeleting}
+        isDestructive
+      />
+
+      {/* Confirm medicine deletion */}
+      <ConfirmDialog
+        isOpen={!!medicineToDelete}
+        onClose={() => setMedicineToDelete(null)}
+        onConfirm={handleDeleteMedicine}
+        title={`Remove ${medicineToDelete?.name} from pharmacy?`}
+        message={`This permanently deletes ${medicineToDelete?.name} and its stock levels from the pharmacy inventory.`}
+        confirmLabel="Delete Medicine"
+        isLoading={isDeleting}
+        isDestructive
       />
     </div>
   );

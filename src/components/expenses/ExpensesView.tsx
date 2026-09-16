@@ -5,8 +5,11 @@ import { StatCard } from '../common/StatCard';
 import { SearchBar } from '../common/SearchBar';
 import { EmptyState } from '../common/EmptyState';
 import { RecordExpenseModal } from './RecordExpenseModal';
-import { Receipt, Wheat, HardHat, Activity, Plus, DollarSign } from 'lucide-react';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { Receipt, Wheat, HardHat, Activity, Plus, DollarSign, Edit2, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { db } from '../../services/db';
+import { useToast } from '../common/Toast';
 
 interface ExpensesViewProps {
   expenses: Expense[];
@@ -15,11 +18,30 @@ interface ExpensesViewProps {
 
 export const ExpensesView: React.FC<ExpensesViewProps> = ({ expenses, onRefresh }) => {
   const { role } = useAuth();
+  const { success, error } = useToast();
   const isWorker = role === 'worker';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isRecordExpenseModalOpen, setIsRecordExpenseModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteExpense(expenseToDelete.id);
+      success('Expense deleted.');
+      setExpenseToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete expense.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Financial aggregates
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -59,7 +81,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ expenses, onRefresh 
             ? {
                 label: 'Record New Expense',
                 icon: Plus,
-                onClick: () => setIsRecordExpenseModalOpen(true),
+                onClick: () => {
+                  setEditingExpense(null);
+                  setIsRecordExpenseModalOpen(true);
+                },
               }
             : undefined
         }
@@ -141,6 +166,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ expenses, onRefresh 
                   <th className="py-3 px-4">Payment Method</th>
                   <th className="py-3 px-4 font-mono">Receipt #</th>
                   <th className="py-3 px-4 text-right">Amount</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -161,6 +187,35 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ expenses, onRefresh 
                     <td className="py-3 px-4 font-mono font-bold text-rose-700 text-right text-sm">
                       ${expense.amount.toLocaleString('en-US')}
                     </td>
+
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {!isWorker && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingExpense(expense);
+                              setIsRecordExpenseModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+                            title="Edit Expense"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => setExpenseToDelete(expense)}
+                            className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Delete Expense"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -175,7 +230,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ expenses, onRefresh 
               !isWorker
                 ? {
                     label: 'Record New Expense',
-                    onClick: () => setIsRecordExpenseModalOpen(true),
+                    onClick: () => {
+                      setEditingExpense(null);
+                      setIsRecordExpenseModalOpen(true);
+                    },
                   }
                 : undefined
             }
@@ -183,11 +241,29 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ expenses, onRefresh 
         )}
       </div>
 
-      {/* Record Expense Modal */}
+      {/* Record / Edit Expense Modal */}
       <RecordExpenseModal
         isOpen={isRecordExpenseModalOpen}
-        onClose={() => setIsRecordExpenseModalOpen(false)}
+        onClose={() => {
+          setIsRecordExpenseModalOpen(false);
+          setEditingExpense(null);
+        }}
+        expenseToEdit={editingExpense}
         onSuccess={onRefresh}
+      />
+
+      {/* Confirm Deletion Dialog */}
+      <ConfirmDialog
+        isOpen={!!expenseToDelete}
+        onClose={() => setExpenseToDelete(null)}
+        onConfirm={handleDeleteExpense}
+        title="Delete this expense?"
+        message={`This permanently deletes "${expenseToDelete?.description}" ($${
+          expenseToDelete?.amount?.toLocaleString('en-US') ?? 0
+        }). Profit and cost reports will change.`}
+        confirmLabel="Delete Expense"
+        isLoading={isDeleting}
+        isDestructive
       />
     </div>
   );

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { InventoryCategory } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { FeedItem, GeneralInventoryItem, InventoryCategory } from '../../types';
 import { Modal } from '../common/Modal';
 import { FormField } from '../common/FormField';
 import { db } from '../../services/db';
@@ -9,12 +9,16 @@ interface AddInventoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  feedToEdit?: FeedItem | null;
+  inventoryToEdit?: GeneralInventoryItem | null;
 }
 
 export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  feedToEdit,
+  inventoryToEdit,
 }) => {
   const { success, error } = useToast();
   const [itemType, setItemType] = useState<'feed' | 'general'>('feed');
@@ -33,13 +37,48 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
   const [genLocation, setGenLocation] = useState('Store Room 1');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const isEditing = !!(feedToEdit || inventoryToEdit);
+
+  // Prefill from whichever record is being edited, or reset for a new entry.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (feedToEdit) {
+      setItemType('feed');
+      setFeedName(feedToEdit.name || '');
+      setFeedType(feedToEdit.type || feedToEdit.feed_type || 'Grower');
+      setUnit(feedToEdit.unit || 'kg');
+      setStock(String(feedToEdit.current_stock ?? feedToEdit.quantity ?? 0));
+      setMinStock(String(feedToEdit.min_stock_level ?? feedToEdit.min_stock ?? 0));
+      setCostPerUnit(String(feedToEdit.cost_per_unit ?? 0));
+    } else if (inventoryToEdit) {
+      setItemType('general');
+      setGenName(inventoryToEdit.name || inventoryToEdit.item_name || '');
+      setGenCategory((inventoryToEdit.category || 'Sanitation') as InventoryCategory);
+      setUnit(inventoryToEdit.unit || 'units');
+      setStock(String(inventoryToEdit.quantity ?? 0));
+      setMinStock(String(inventoryToEdit.min_stock_level ?? inventoryToEdit.min_stock ?? 0));
+      setGenLocation(inventoryToEdit.location || '');
+    } else {
+      setItemType('feed');
+      setFeedName('');
+      setFeedType('Grower');
+      setUnit('kg');
+      setStock('500');
+      setMinStock('200');
+      setCostPerUnit('32');
+      setGenName('');
+      setGenCategory('Sanitation');
+      setGenLocation('Store Room 1');
+    }
+  }, [feedToEdit, inventoryToEdit, isOpen]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
       if (itemType === 'feed') {
         if (!feedName.trim()) throw new Error('Please enter feed ration name.');
-        db.addFeedItem({
+        const feedPayload = {
           name: feedName.trim(),
           feed_type: feedType as any,
           type: feedType,
@@ -49,11 +88,17 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
           min_stock: parseFloat(minStock) || 0,
           min_stock_level: parseFloat(minStock) || 0,
           cost_per_unit: parseFloat(costPerUnit) || 0,
-        });
-        success(`Feed item "${feedName}" added to inventory.`);
+        };
+        if (feedToEdit) {
+          await db.updateFeedItem(feedToEdit.id, feedPayload as any);
+          success(`Feed item "${feedName}" updated.`);
+        } else {
+          await db.addFeedItem(feedPayload as any);
+          success(`Feed item "${feedName}" added to inventory.`);
+        }
       } else {
         if (!genName.trim()) throw new Error('Please enter inventory item name.');
-        db.addGeneralInventoryItem({
+        const invPayload = {
           item_name: genName.trim(),
           name: genName.trim(),
           category: genCategory as any,
@@ -63,13 +108,19 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
           min_stock: parseFloat(minStock) || 0,
           min_stock_level: parseFloat(minStock) || 0,
           location: genLocation.trim(),
-        });
-        success(`Inventory item "${genName}" added to supplies.`);
+        };
+        if (inventoryToEdit) {
+          await db.updateInventoryItem(inventoryToEdit.id, invPayload as any);
+          success(`Inventory item "${genName}" updated.`);
+        } else {
+          await db.addGeneralInventoryItem(invPayload as any);
+          success(`Inventory item "${genName}" added to supplies.`);
+        }
       }
       onSuccess();
       onClose();
     } catch (err: any) {
-      error(err.message || 'Failed to add item.');
+      error(err.message || 'Failed to save item.');
     } finally {
       setIsSubmitting(false);
     }
@@ -79,7 +130,13 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Add Inventory Item or Feed Formulation"
+      title={
+        feedToEdit
+          ? `Edit Feed Ration: ${feedToEdit.name}`
+          : inventoryToEdit
+          ? `Edit Supply Item: ${inventoryToEdit.name || inventoryToEdit.item_name}`
+          : 'Add Inventory Item or Feed Formulation'
+      }
       subtitle="Register new farm rations, sanitation supplies, or farm equipment"
       maxWidth="md"
     >
@@ -88,6 +145,7 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
+              disabled={isEditing}
               onClick={() => setItemType('feed')}
               className={`py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                 itemType === 'feed'
@@ -99,6 +157,7 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
             </button>
             <button
               type="button"
+              disabled={isEditing}
               onClick={() => setItemType('general')}
               className={`py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                 itemType === 'general'
@@ -154,7 +213,7 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-              <FormField label="Initial Stock" required>
+              <FormField label={feedToEdit ? 'Current Stock' : 'Initial Stock'} required>
                 <input
                   type="number"
                   min="0"
@@ -275,9 +334,9 @@ export const AddInventoryModal: React.FC<AddInventoryModalProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer"
+            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer disabled:opacity-60"
           >
-            {isSubmitting ? 'Saving...' : 'Add to Farm Inventory'}
+            {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Add to Farm Inventory'}
           </button>
         </div>
       </form>

@@ -41,6 +41,15 @@ class FarmDatabase {
     return data as T;
   }
 
+  // Some tables (health_records, sales, expenses, feed_transactions, pig_weights,
+  // birth_records) have no updated_at column, so writing one would fail. Use this
+  // for those tables instead of update().
+  private async updateRaw<T>(table: TableName, id: string, values: Record<string, unknown>): Promise<T> {
+    const { data, error } = await client().from(table).update(values).eq('id', id).eq('farm_id', this.farmId()).select('*').single();
+    if (error) throw new Error(error.message);
+    return data as T;
+  }
+
   private async remove(table: TableName, id: string): Promise<void> {
     const { error } = await client().from(table).delete().eq('id', id).eq('farm_id', this.farmId());
     if (error) throw new Error(error.message);
@@ -149,11 +158,35 @@ class FarmDatabase {
   public async getHealthRecords(pigId?: string): Promise<HealthRecord[]> { const { data, error } = await client().from('health_records').select('*').eq('farm_id', this.farmId()).order('record_date', { ascending: false }); if (error) throw new Error(error.message); return ((data || []) as HealthRecord[]).filter((record) => !pigId || record.pig_id === pigId); }
   public async addHealthRecord(data: Omit<HealthRecord, 'id' | 'farm_id' | 'created_at'>, options?: { deductMedicineStock?: boolean; logExpense?: boolean }): Promise<HealthRecord> { const result = await this.insert<HealthRecord>('health_records', { ...data, recorded_by: this.getCurrentUser().id }); if (data.type === 'Disease' || data.type === 'Treatment') await this.updatePig(data.pig_id, { status: 'Sick' }); if (options?.deductMedicineStock && data.medicine_id) await this.deductMedicineStock(data.medicine_id); if (options?.logExpense && data.cost > 0) await this.addExpense({ date: data.record_date, category: data.type === 'Vaccination' ? 'Vaccination' : 'Veterinary', amount: data.cost, description: `${data.type} for Pig ${data.pig_id}: ${data.condition}`, supplier_payee: data.veterinarian || 'Veterinary Care', payment_method: 'Cash', notes: data.notes }); return result; }
 
+  public updateHealthRecord(id: string, updates: Partial<HealthRecord>): Promise<HealthRecord> { return this.updateRaw<HealthRecord>('health_records', id, updates); }
+  public deleteHealthRecord(id: string): Promise<void> { return this.remove('health_records', id); }
+
   public getFeedItems(): Promise<FeedItem[]> { return this.list<FeedItem>('feed_items'); }
   public addFeedItem(data: Omit<FeedItem, 'id' | 'farm_id' | 'created_at' | 'updated_at'>): Promise<FeedItem> { return this.insert<FeedItem>('feed_items', data); }
   public updateFeedItem(id: string, updates: Partial<FeedItem>): Promise<FeedItem> { return this.update<FeedItem>('feed_items', id, updates); }
+  public async deleteFeedItem(id: string): Promise<void> {
+    const { data, error } = await client().from('feed_transactions').select('id').eq('farm_id', this.farmId()).eq('feed_item_id', id).limit(1);
+    if (error) throw new Error(error.message);
+    if (data?.length) throw new Error('Cannot delete a feed ration that has purchase or usage history. Delete those entries first.');
+    return this.remove('feed_items', id);
+  }
   public getFeedTransactions(): Promise<FeedTransaction[]> { return this.list<FeedTransaction>('feed_transactions', 'date'); }
   public async getFeedPurchases(): Promise<FeedTransaction[]> { return (await this.getFeedTransactions()).filter((item) => item.type === 'purchase'); }
+
+  // Deleting a feed transaction reverses the stock movement it caused.
+  // NOTE: a purchase also writes a row into expenses; that expense is left in place
+  // and must be removed from the Expenses page if it is no longer wanted.
+  public async deleteFeedTransaction(id: string): Promise<void> {
+    const transaction = (await this.getFeedTransactions()).find((item) => item.id === id);
+    if (!transaction) throw new Error('Feed transaction not found.');
+    const feed = (await this.getFeedItems()).find((item) => item.id === transaction.feed_item_id);
+    if (feed) {
+      const reversed = transaction.type === 'purchase' ? feed.quantity - transaction.quantity : feed.quantity + transaction.quantity;
+      if (reversed < 0) throw new Error(`Cannot delete this purchase: only ${feed.quantity} ${feed.unit} of ${feed.name} left in stock, and this entry added ${transaction.quantity}.`);
+      await this.updateFeedItem(feed.id, { quantity: reversed, current_stock: reversed });
+    }
+    return this.remove('feed_transactions', id);
+  }
 
   public async recordFeedPurchase(data: { feed_item_id?: string; feed_id?: string; quantity?: number; cost?: number; total_amount?: number; unit_price?: number; date?: string; purchase_date?: string; notes?: string; supplier?: string; invoice_number?: string; payment_method?: string; [key: string]: any }): Promise<FeedTransaction> {
     const feedId = data.feed_item_id || data.feed_id;
@@ -219,15 +252,46 @@ class FarmDatabase {
   public addInventoryItem(data: Omit<InventoryItem, 'id' | 'farm_id' | 'created_at' | 'updated_at'>): Promise<InventoryItem> { return this.insert<InventoryItem>('inventory_items', data); }
   public addGeneralInventoryItem(data: Omit<InventoryItem, 'id' | 'farm_id' | 'created_at' | 'updated_at'>): Promise<InventoryItem> { return this.addInventoryItem(data); }
   public updateInventoryItem(id: string, updates: Partial<InventoryItem>): Promise<InventoryItem> { return this.update<InventoryItem>('inventory_items', id, updates); }
+  public deleteInventoryItem(id: string): Promise<void> { return this.remove('inventory_items', id); }
 
   public getCustomers(): Promise<Customer[]> { return this.list<Customer>('customers'); }
   public addCustomer(data: Omit<Customer, 'id' | 'farm_id' | 'created_at' | 'updated_at'>): Promise<Customer> { return this.insert<Customer>('customers', data); }
   public updateCustomer(id: string, updates: Partial<Customer>): Promise<Customer> { return this.update<Customer>('customers', id, updates); }
+  public async deleteCustomer(id: string): Promise<void> {
+    const { data, error } = await client().from('sales').select('id').eq('farm_id', this.farmId()).eq('customer_id', id).limit(1);
+    if (error) throw new Error(error.message);
+    if (data?.length) throw new Error('Cannot delete a customer who has recorded sales. Delete or reassign those sales first.');
+    return this.remove('customers', id);
+  }
   public getSales(): Promise<Sale[]> { return this.list<Sale>('sales', 'sale_date'); }
   public async addSale(data: any): Promise<Sale> { if (data.weight <= 0 || data.price_per_kg <= 0) throw new Error('Weight and price per kg must be greater than zero.'); const result = await this.insert<Sale>('sales', { ...data, total_amount: Number((data.weight * data.price_per_kg).toFixed(2)), recorded_by: this.getCurrentUser().id }); for (const id of [data.pig_id, ...(data.pig_ids || [])].filter(Boolean)) await this.updatePig(id, { status: 'Sold' }); return result; }
   public recordSale(data: any): Promise<Sale> { return this.addSale(data); }
+  public async updateSale(id: string, updates: any): Promise<Sale> {
+    const existing = (await this.getSales()).find((item) => item.id === id);
+    if (!existing) throw new Error('Sale record not found.');
+    const weight = updates.weight ?? existing.weight;
+    const rate = updates.price_per_kg ?? existing.price_per_kg;
+    if (weight <= 0 || rate <= 0) throw new Error('Weight and price per kg must be greater than zero.');
+    const result = await this.updateRaw<Sale>('sales', id, { ...updates, total_amount: Number((weight * rate).toFixed(2)) });
+    // If the sale was moved to a different animal, release the old one and mark the new one sold.
+    if (updates.pig_id && existing.pig_id && updates.pig_id !== existing.pig_id) {
+      await this.updatePig(existing.pig_id, { status: 'Active' });
+    }
+    if (result.pig_id) await this.updatePig(result.pig_id, { status: 'Sold' });
+    return result;
+  }
+  // Deleting a sale puts the animal(s) back into the active herd.
+  public async deleteSale(id: string): Promise<void> {
+    const existing = (await this.getSales()).find((item) => item.id === id);
+    await this.remove('sales', id);
+    for (const pigId of [existing?.pig_id, ...(existing?.pig_ids || [])].filter(Boolean) as string[]) {
+      try { await this.updatePig(pigId, { status: 'Active' }); } catch { /* pig may have been removed already */ }
+    }
+  }
   public getExpenses(): Promise<Expense[]> { return this.list<Expense>('expenses', 'date'); }
   public async addExpense(data: Omit<Expense, 'id' | 'farm_id' | 'created_at'>): Promise<Expense> { if (data.amount <= 0) throw new Error('Expense amount must be greater than zero.'); return this.insert<Expense>('expenses', { ...data, recorded_by: this.getCurrentUser().id }); }
+  public async updateExpense(id: string, updates: Partial<Expense>): Promise<Expense> { if (updates.amount != null && updates.amount <= 0) throw new Error('Expense amount must be greater than zero.'); return this.updateRaw<Expense>('expenses', id, updates); }
+  public deleteExpense(id: string): Promise<void> { return this.remove('expenses', id); }
 
   public getDashboardStats(data: { pigs: Pig[]; sales: Sale[]; expenses: Expense[]; feeds: FeedItem[]; medicines: Medicine[]; breeding: BreedingRecord[] }): FarmDashboardStats {
     const active = data.pigs.filter((pig) => ['Active', 'Pregnant', 'Sick'].includes(pig.status)); const females = active.filter((pig) => pig.sex === 'Female'); const breedingSows = females.filter((pig) => pig.current_weight >= 90 || pig.status === 'Pregnant'); const today = new Date().toISOString().slice(0, 10); const month = today.slice(0, 7); const total = (items: Array<{ amount?: number; total_amount?: number }>, prefix: string, dateKey: 'amount' | 'total_amount') => items.filter((item) => String((item as any)[dateKey === 'amount' ? 'date' : 'sale_date']).startsWith(prefix)).reduce((sum, item) => sum + Number(item[dateKey] || 0), 0); const in45 = new Date(); in45.setDate(in45.getDate() + 45); const in14 = new Date(); in14.setDate(in14.getDate() + 14);

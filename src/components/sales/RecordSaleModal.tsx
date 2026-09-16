@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Pig, Customer, PaymentStatus, PaymentMethod } from '../../types';
+import { Pig, Customer, Sale, PaymentStatus, PaymentMethod } from '../../types';
 import { Modal } from '../common/Modal';
 import { FormField } from '../common/FormField';
 import { db } from '../../services/db';
@@ -10,6 +10,7 @@ interface RecordSaleModalProps {
   onClose: () => void;
   onSuccess: () => void;
   preselectedPigId?: string;
+  saleToEdit?: Sale | null;
 }
 
 export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
@@ -17,6 +18,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
   onClose,
   onSuccess,
   preselectedPigId,
+  saleToEdit,
 }) => {
   const { success, error } = useToast();
   const [activePigs, setActivePigs] = useState<Pig[]>([]);
@@ -33,9 +35,30 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
     void Promise.all([db.getPigs(), db.getCustomers()]).then(([allPigs, custs]) => {
-    const pigs = allPigs.filter((p) => p.status === 'Active' || p.status === 'Sick');
+    // The pig on a sale being edited is already marked 'Sold', so keep it selectable.
+    const pigs = allPigs.filter(
+      (p) => p.status === 'Active' || p.status === 'Sick' || p.id === saleToEdit?.pig_id
+    );
     setActivePigs(pigs); setCustomers(custs);
+
+    if (saleToEdit) {
+      setSaleDate(saleToEdit.sale_date);
+      setCustomerId(saleToEdit.customer_id || (custs[0]?.id ?? ''));
+      setPigId(saleToEdit.pig_id || '');
+      setWeight(String(saleToEdit.weight));
+      setPricePerKg(String(saleToEdit.price_per_kg));
+      setPaymentStatus(saleToEdit.payment_status);
+      setPaymentMethod(saleToEdit.payment_method as PaymentMethod);
+      setNotes(saleToEdit.notes || '');
+      return;
+    }
+
+    setSaleDate(new Date().toISOString().split('T')[0]);
+    setPaymentStatus('Paid');
+    setPaymentMethod('Bank Transfer');
+    setNotes('');
 
     if (preselectedPigId) {
       setPigId(preselectedPigId);
@@ -50,10 +73,12 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
       setCustomerId(custs[0].id);
     }
     }).catch((err) => error(err.message));
-  }, [isOpen, preselectedPigId]);
+  }, [isOpen, preselectedPigId, saleToEdit]);
 
   const handlePigChange = (id: string) => {
     setPigId(id);
+    // Don't clobber the recorded sale weight when correcting an existing invoice.
+    if (saleToEdit) return;
     const matched = activePigs.find((p) => p.id === id);
     if (matched) {
       setWeight(String(matched.current_weight));
@@ -84,23 +109,30 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
       const selectedPig = activePigs.find((p) => p.id === pigId);
       const selectedCustomer = customers.find((c) => c.id === customerId);
 
-      await db.recordSale({
+      const payload = {
         sale_date: saleDate,
         customer_id: customerId,
         customer_name: selectedCustomer?.name || 'Wholesale Buyer',
         pig_id: pigId,
         pig_tag: selectedPig?.pig_id || 'Pig',
+        pig_code: selectedPig?.pig_id || undefined,
         weight: weightNum,
         price_per_kg: rateNum,
         total_amount: totalAmount,
         payment_status: paymentStatus,
         payment_method: paymentMethod,
         notes: notes.trim() || undefined,
-      });
+      };
 
-      success(
-        `Sale of ${selectedPig?.pig_id} recorded ($${totalAmount.toLocaleString('en-US')}). Pig status set to 'Sold'.`
-      );
+      if (saleToEdit) {
+        await db.updateSale(saleToEdit.id, payload);
+        success(`Sale updated ($${totalAmount.toLocaleString('en-US')}).`);
+      } else {
+        await db.recordSale(payload);
+        success(
+          `Sale of ${selectedPig?.pig_id} recorded ($${totalAmount.toLocaleString('en-US')}). Pig status set to 'Sold'.`
+        );
+      }
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -114,7 +146,7 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Record Livestock Sale"
+      title={saleToEdit ? `Edit Sale: ${saleToEdit.pig_tag ?? saleToEdit.pig_code ?? ''} (${saleToEdit.sale_date})` : 'Record Livestock Sale'}
       subtitle="Calculates gross revenue from live weight, logs buyer invoice, and auto-marks pig as 'Sold'"
       maxWidth="lg"
     >
@@ -252,9 +284,13 @@ export const RecordSaleModal: React.FC<RecordSaleModalProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer"
+            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer disabled:opacity-60"
           >
-            {isSubmitting ? 'Recording...' : 'Confirm Sale & Mark Pig as Sold'}
+            {isSubmitting
+              ? 'Saving...'
+              : saleToEdit
+              ? 'Update Sale Invoice'
+              : 'Confirm Sale & Mark Pig as Sold'}
           </button>
         </div>
       </form>

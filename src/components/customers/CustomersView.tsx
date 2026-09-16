@@ -5,8 +5,11 @@ import { StatCard } from '../common/StatCard';
 import { SearchBar } from '../common/SearchBar';
 import { EmptyState } from '../common/EmptyState';
 import { AddCustomerModal } from './AddCustomerModal';
-import { Users, Phone, MapPin, Plus, Store, ShoppingBag } from 'lucide-react';
+import { ConfirmDialog } from '../common/ConfirmDialog';
+import { Users, Phone, MapPin, Plus, Store, ShoppingBag, Edit2, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { db } from '../../services/db';
+import { useToast } from '../common/Toast';
 
 interface CustomersViewProps {
   customers: Customer[];
@@ -20,8 +23,28 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   onRefresh,
 }) => {
   const { role } = useAuth();
+  const { success, error } = useToast();
+  const isWorker = role === 'worker';
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteCustomer = async () => {
+    if (!customerToDelete) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteCustomer(customerToDelete.id);
+      success(`Customer "${customerToDelete.name}" removed from directory.`);
+      setCustomerToDelete(null);
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Could not delete customer.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Compute stats for each customer from real sales
   const customerSalesMap: Record<string, { count: number; total: number }> = {};
@@ -54,11 +77,18 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
         title="Customer & Buyer Directory"
         description="Maintain verified contacts for wholesale livestock traders, pork butchers, and farm gate buyers"
         badge={`${customers.length} Buyers`}
-        action={{
-          label: 'Add Customer',
-          icon: Plus,
-          onClick: () => setIsAddModalOpen(true),
-        }}
+        action={
+          !isWorker
+            ? {
+                label: 'Add Customer',
+                icon: Plus,
+                onClick: () => {
+                  setEditingCustomer(null);
+                  setIsAddModalOpen(true);
+                },
+              }
+            : undefined
+        }
       />
 
       {/* Metric Cards */}
@@ -115,6 +145,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                   <th className="py-3 px-4">Market Address</th>
                   <th className="py-3 px-4 text-center">Orders</th>
                   <th className="py-3 px-4 text-right">Lifetime Spend</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -165,6 +196,35 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                       <td className="py-3 px-4 font-mono font-bold text-stone-900 text-right">
                         ${spend.toLocaleString('en-US')}
                       </td>
+
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {!isWorker && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCustomer(cust);
+                                setIsAddModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+                              title="Edit Customer"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {role === 'admin' && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomerToDelete(cust)}
+                              className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete Customer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -176,19 +236,42 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
             icon={Users}
             title="No buyers registered"
             description="Add meat merchants and pork butcher shops to streamline sale invoices."
-            action={{
-              label: 'Add Customer',
-              onClick: () => setIsAddModalOpen(true),
-            }}
+            action={
+              !isWorker
+                ? {
+                    label: 'Add Customer',
+                    onClick: () => {
+                      setEditingCustomer(null);
+                      setIsAddModalOpen(true);
+                    },
+                  }
+                : undefined
+            }
           />
         )}
       </div>
 
-      {/* Add Customer Modal */}
+      {/* Add / Edit Customer Modal */}
       <AddCustomerModal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setEditingCustomer(null);
+        }}
+        customerToEdit={editingCustomer}
         onSuccess={onRefresh}
+      />
+
+      {/* Confirm Deletion Dialog */}
+      <ConfirmDialog
+        isOpen={!!customerToDelete}
+        onClose={() => setCustomerToDelete(null)}
+        onConfirm={handleDeleteCustomer}
+        title={`Remove ${customerToDelete?.name} from directory?`}
+        message={`This permanently deletes the buyer record for ${customerToDelete?.name}. Customers with recorded sales cannot be deleted.`}
+        confirmLabel="Delete Customer"
+        isLoading={isDeleting}
+        isDestructive
       />
     </div>
   );

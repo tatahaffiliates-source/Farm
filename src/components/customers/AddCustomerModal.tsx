@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { CustomerType } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { Customer, CustomerType } from '../../types';
 import { Modal } from '../common/Modal';
 import { FormField } from '../common/FormField';
 import { db } from '../../services/db';
@@ -9,12 +9,14 @@ interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  customerToEdit?: Customer | null;
 }
 
 export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  customerToEdit,
 }) => {
   const { success, error } = useToast();
   const [name, setName] = useState('');
@@ -23,6 +25,24 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load the record being edited, or reset to a blank form for a new one.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (customerToEdit) {
+      setName(customerToEdit.name || '');
+      setPhone(customerToEdit.phone || '');
+      setType((customerToEdit.type ?? customerToEdit.customer_type ?? 'Wholesale Buyer') as CustomerType);
+      setAddress(customerToEdit.address || '');
+      setNotes(customerToEdit.notes || '');
+    } else {
+      setName('');
+      setPhone('');
+      setType('Wholesale Buyer');
+      setAddress('');
+      setNotes('');
+    }
+  }, [customerToEdit, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,24 +53,27 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      await db.addCustomer({
+      const payload = {
         name: name.trim(),
         phone: phone.trim(),
         type,
+        customer_type: type,
         address: address.trim() || undefined,
         notes: notes.trim() || undefined,
-      });
+      };
 
-      success(`Customer "${name}" registered in directory.`);
+      if (customerToEdit) {
+        await db.updateCustomer(customerToEdit.id, payload);
+        success(`Customer "${name}" updated.`);
+      } else {
+        await db.addCustomer(payload as any);
+        success(`Customer "${name}" registered in directory.`);
+      }
+
       onSuccess();
       onClose();
-      // Reset
-      setName('');
-      setPhone('');
-      setAddress('');
-      setNotes('');
     } catch (err: any) {
-      error(err.message || 'Failed to add customer.');
+      error(err.message || 'Failed to save customer.');
     } finally {
       setIsSubmitting(false);
     }
@@ -60,7 +83,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Add Buyer / Customer to Directory"
+      title={customerToEdit ? `Edit Customer: ${customerToEdit.name}` : 'Add Buyer / Customer to Directory'}
       subtitle="Register wholesale meat merchants, pork butcher shops, and breeding stock buyers"
       maxWidth="md"
     >
@@ -132,9 +155,9 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer"
+            className="px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer disabled:opacity-60"
           >
-            {isSubmitting ? 'Saving...' : 'Register Customer'}
+            {isSubmitting ? 'Saving...' : customerToEdit ? 'Update Customer' : 'Register Customer'}
           </button>
         </div>
       </form>
