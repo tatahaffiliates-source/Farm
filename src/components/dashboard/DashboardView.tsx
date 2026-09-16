@@ -73,20 +73,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .filter((b) => b.status === 'Pregnant')
     .slice(0, 4);
 
-  // Financial chart data (last 4 months simulation from actual records or current month)
-  const currentMonthSales = stats.thisMonthSales;
-  const currentMonthExpenses = stats.thisMonthExpenses;
+  // Financial chart data: real totals for the last 4 months (including
+  // the current month), computed from actual sale/expense records.
+  // No hardcoded numbers — months with no records show $0.
+  const financialComparisonData = React.useMemo(() => {
+    const now = new Date();
+    const months: { key: string; label: string; start: Date; end: Date }[] = [];
 
-  const financialComparisonData = [
-    { month: 'Jun', Sales: 85000, Expenses: 52000 },
-    { month: 'Jul', Sales: 110000, Expenses: 64000 },
-    { month: 'Aug', Sales: 109080, Expenses: 50850 },
-    {
-      month: 'Sep (Current)',
-      Sales: currentMonthSales,
-      Expenses: currentMonthExpenses,
-    },
-  ];
+    for (let i = 3; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      const label =
+        i === 0
+          ? `${d.toLocaleDateString('en-US', { month: 'short' })} (Current)`
+          : d.toLocaleDateString('en-US', { month: 'short' });
+      months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label, start, end });
+    }
+
+    return months.map(({ label, start, end }) => {
+      const monthSales = sales
+        .filter((s) => {
+          const dt = new Date((s as any).sale_date);
+          return dt >= start && dt < end;
+        })
+        .reduce((sum, s) => sum + (Number((s as any).total_amount) || 0), 0);
+
+      const monthExpenses = expenses
+        .filter((e) => {
+          const dt = new Date((e as any).expense_date || (e as any).date);
+          return dt >= start && dt < end;
+        })
+        .reduce((sum, e) => sum + (Number((e as any).amount) || 0), 0);
+
+      return { month: label, Sales: monthSales, Expenses: monthExpenses };
+    });
+  }, [sales, expenses]);
 
   // Livestock distribution by Breed
   const breedCounts: Record<string, number> = {};
@@ -442,7 +464,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="p-8 rounded-lg bg-stone-50 border border-dashed border-stone-200">
               <Scale className="w-8 h-8 text-emerald-700 mx-auto mb-2" />
               <p className="text-xs font-semibold text-stone-800">
-                10 active pigs in herd. Average finisher weight: 96 kg.
+                {stats.totalPigs} active pig{stats.totalPigs === 1 ? '' : 's'} in herd.
               </p>
               <button
                 onClick={() => onOpenQuickAction('record-weight')}
@@ -463,33 +485,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <p className="text-xs text-stone-500 mb-2">Breeding stock vs commercial crossbreeds</p>
 
             <div className="h-52 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={breedChartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={75}
-                    paddingAngle={3}
-                  >
-                    {breedChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1c1917',
-                      borderColor: '#292524',
-                      borderRadius: '8px',
-                      color: '#fff',
-                      fontSize: '12px',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              {breedChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={breedChartData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={3}
+                    >
+                      {breedChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#1c1917',
+                        borderColor: '#292524',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-stone-400">
+                  No livestock recorded yet.
+                </div>
+              )}
             </div>
           </div>
 
