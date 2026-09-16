@@ -10,7 +10,7 @@ import { useToast } from '../common/Toast';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { InviteWorkerModal } from './InviteWorkerModal';
-import { Settings, Home, Shield, RefreshCw, Plus, Users, Check } from 'lucide-react';
+import { Settings, Home, Shield, RefreshCw, Plus, Users, Check, Download, AlertTriangle } from 'lucide-react';
 
 interface SettingsViewProps {
   pens: Pen[];
@@ -29,11 +29,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ pens, settings, sect
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   // Farm profile form state
-const [farmName, setFarmName] = useState(settings.farm_name || '');
-const [ownerName, setOwnerName] = useState(settings.owner_name || '');
-const [phone, setPhone] = useState(settings.phone || '');
-const [email, setEmail] = useState(settings.email || '');
-const [address, setAddress] = useState(settings.address || '');
+  const [farmName, setFarmName] = useState(settings.farm_name || '');
+  const [ownerName, setOwnerName] = useState(settings.owner_name || '');
+  const [phone, setPhone] = useState(settings.phone || '');
+  const [email, setEmail] = useState(settings.email || '');
+  const [address, setAddress] = useState(settings.address || '');
 
   // Pen management modal state
   const [isPenModalOpen, setIsPenModalOpen] = useState(false);
@@ -42,6 +42,12 @@ const [address, setAddress] = useState(settings.address || '');
   const [penType, setPenType] = useState<PenType>('Grower');
   const [penCapacity, setPenCapacity] = useState('15');
   const [penStatus, setPenStatus] = useState<PenStatus>('Active');
+
+  // System: export / reset state
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   React.useEffect(() => {
     if (section === 'users') setActiveTab('users');
@@ -171,6 +177,57 @@ const [address, setAddress] = useState(settings.address || '');
     }
   };
 
+  // Export all farm data as a downloadable JSON file
+  const handleExportData = async () => {
+    if (!supabase) return;
+    setIsExporting(true);
+    try {
+      const { data, error: exportError } = await supabase.rpc('export_farm_data', {
+        target_farm_id: (settings as any).farm_id,
+      });
+      if (exportError) throw exportError;
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(settings.farm_name || 'farm').replace(/\s+/g, '_')}_export_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      success('Farm data exported.');
+    } catch (err: any) {
+      error(err.message || 'Failed to export farm data.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Permanently erase all farm data (admin only, requires typed confirmation)
+  const handleResetFarmData = async () => {
+    if (!supabase) return;
+    if (resetConfirmText.trim() !== settings.farm_name) {
+      error('Farm name does not match — reset cancelled.');
+      return;
+    }
+    setIsResetting(true);
+    try {
+      const { error: resetError } = await supabase.rpc('reset_farm_data', {
+        target_farm_id: (settings as any).farm_id,
+      });
+      if (resetError) throw resetError;
+      success('All farm data has been erased.');
+      setIsResetModalOpen(false);
+      setResetConfirmText('');
+      onRefresh();
+    } catch (err: any) {
+      error(err.message || 'Failed to reset farm data.');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <div className="space-y-5 pb-12">
       <PageHeader
@@ -180,7 +237,7 @@ const [address, setAddress] = useState(settings.address || '');
       />
 
       {/* Tabs */}
-      <div className="flex border-b border-stone-200">
+      <div className="flex border-b border-stone-200 flex-wrap">
         <button
           type="button"
           onClick={() => setActiveTab('pens')}
@@ -227,6 +284,18 @@ const [address, setAddress] = useState(settings.address || '');
           >
             <Users className="w-4 h-4" />
             Manage Users
+          </button>
+        )}
+        {role === 'admin' && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('system')}
+            className={`flex items-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-semibold border-b-2 -mb-px transition-colors cursor-pointer ${
+              activeTab === 'system' ? 'border-emerald-700 text-emerald-800' : 'border-transparent text-stone-500 hover:text-stone-700'
+            }`}
+          >
+            <RefreshCw className="w-4 h-4" />
+            System & Data
           </button>
         )}
       </div>
@@ -525,6 +594,48 @@ const [address, setAddress] = useState(settings.address || '');
         </div>
       )}
 
+      {/* Tab 4: System & Data (export / reset) */}
+      {activeTab === 'system' && role === 'admin' && (
+        <div className="space-y-5 max-w-2xl">
+          <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-2xs">
+            <h3 className="text-sm font-bold text-stone-900 mb-1 flex items-center gap-2">
+              <Download className="w-4 h-4 text-emerald-700" />
+              Data Export
+            </h3>
+            <p className="text-xs text-stone-500 mb-4">
+              Download every record for this farm — pens, animals, health, feed, breeding, sales, and financials — as a single JSON file you can keep as a backup or transfer elsewhere.
+            </p>
+            <button
+              type="button"
+              onClick={handleExportData}
+              disabled={isExporting}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              {isExporting ? 'Exporting…' : 'Export Farm Data'}
+            </button>
+          </div>
+
+          <div className="bg-rose-50 rounded-xl border border-rose-200 p-6 shadow-2xs">
+            <h3 className="text-sm font-bold text-rose-900 mb-1 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Danger Zone
+            </h3>
+            <p className="text-xs text-rose-700 mb-4">
+              Permanently erases every pen, animal, health, feed, breeding, sales, and financial record for this farm. This cannot be undone. Export first if you want a backup.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsResetModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Reset All Farm Data
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Add / Edit Pen Modal */}
       <Modal
         isOpen={isPenModalOpen}
@@ -602,6 +713,45 @@ const [address, setAddress] = useState(settings.address || '');
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Reset Confirmation Modal */}
+      <Modal
+        isOpen={isResetModalOpen}
+        onClose={() => { setIsResetModalOpen(false); setResetConfirmText(''); }}
+        title="Reset All Farm Data"
+        subtitle="This permanently deletes every record for this farm. There is no undo."
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-stone-700">
+            Type <span className="font-mono font-bold">{settings.farm_name}</span> below to confirm.
+          </p>
+          <input
+            type="text"
+            value={resetConfirmText}
+            onChange={(e) => setResetConfirmText(e.target.value)}
+            placeholder={settings.farm_name}
+            className="w-full px-3 py-2 text-sm rounded-lg border border-rose-300 text-stone-900"
+          />
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-200">
+            <button
+              type="button"
+              onClick={() => { setIsResetModalOpen(false); setResetConfirmText(''); }}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleResetFarmData}
+              disabled={isResetting || resetConfirmText.trim() !== settings.farm_name}
+              className="px-5 py-2 text-sm font-semibold rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isResetting ? 'Erasing…' : 'Permanently Erase Everything'}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
