@@ -145,7 +145,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mt-1.5">
-              Live Swinryryrye Herd & Financial Pulse
+              Live Kisto’s pig farm
             </h1>
             <p className="text-xs sm:text-sm text-stone-300 mt-1 max-w-xl">
               Real-time monitoring of livestock headcount, feeding inventory, farrowing schedules, and net farm profit.
