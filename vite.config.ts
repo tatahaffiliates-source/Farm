@@ -13,8 +13,8 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
         manifest: {
-          name: 'PigPilot',
-          short_name: 'PigPilot',
+          name: 'Kisto’s pig farm',
+          short_name: 'Kisto’s pig farm',
           description:
             'Harvesting healthy choices — track livestock, breeding, health, feed inventory, sales, expenses, and financial performance for your pig farm.',
           theme_color: '#16a34a',
