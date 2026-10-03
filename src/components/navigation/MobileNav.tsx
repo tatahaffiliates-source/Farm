@@ -70,8 +70,12 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       >
         <div className="p-4 border-b border-stone-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="text-xl">🐖</span>
-            <span className="font-bold text-white text-sm">Sunland Swine Farm</span>
+            <img
+              src="/kistos-pig-farm.png"
+              alt="Kisto's Pig Farm"
+              className="w-10 h-10 rounded-lg bg-white object-contain"
+            />
+            <span className="font-bold text-white text-sm">Kisto&apos;s Pig Farm</span>
           </div>
           <button
             type="button"

@@ -62,8 +62,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelectSectio
       {/* Brand Header */}
       <div className="p-5 border-b border-stone-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-xl shadow-inner shadow-emerald-400/20">
-            🐖
+          <div className="w-12 h-12 rounded-xl bg-white p-0.5 shrink-0">
+            <img
+              src="/kistos-pig-farm.png"
+              alt="Kisto's Pig Farm"
+              className="w-full h-full object-contain rounded-lg"
+            />
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-white tracking-tight truncate">{farmName}</h2>

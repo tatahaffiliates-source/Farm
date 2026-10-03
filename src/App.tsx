@@ -53,7 +53,12 @@ function MainAppContent() {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return <div className="min-h-screen bg-stone-100 flex items-center justify-center text-sm text-stone-600">Loading farm access...</div>;
+    return (
+      <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center gap-3 text-sm text-stone-600">
+        <img src="/kistos-pig-farm.png" alt="Kisto's Pig Farm" className="w-32 h-32 object-contain rounded-2xl bg-white" />
+        <span>Loading farm access...</span>
+      </div>
+    );
   }
 
   if (!isAuthenticated) return <AuthModal />;
@@ -113,7 +118,12 @@ function AuthenticatedAppContent() {
   }, [refreshAllData]);
 
   if (isDataLoading || !settings || !stats) {
-    return <div className="min-h-screen bg-stone-100 flex items-center justify-center text-sm text-stone-600">Loading farm data...</div>;
+    return (
+      <div className="min-h-screen bg-stone-100 flex flex-col items-center justify-center gap-3 text-sm text-stone-600">
+        <img src="/kistos-pig-farm.png" alt="Kisto's Pig Farm" className="w-32 h-32 object-contain rounded-2xl bg-white" />
+        <span>Loading farm data...</span>
+      </div>
+    );
   }
 
   // Handle Quick Action Trigger

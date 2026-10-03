@@ -11,10 +11,14 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+        includeAssets: [
+          'kistos-pig-farm.png',
+          'icons/kistos-pig-farm-32.png',
+          'icons/kistos-pig-farm-apple.png',
+        ],
         manifest: {
           name: 'Kisto’s pig farm',
-          short_name: 'Kisto’s pig farm',
+          short_name: "Kisto's Farm",
           description:
             'Harvesting healthy choices — track livestock, breeding, health, feed inventory, sales, expenses, and financial performance for your pig farm.',
           theme_color: '#16a34a',
@@ -24,20 +28,20 @@ export default defineConfig(() => {
           scope: '/',
           icons: [
             {
-              src: '/icons/icon-192.png',
+              src: '/icons/kistos-pig-farm-192.png',
               sizes: '192x192',
               type: 'image/png',
             },
             {
-              src: '/icons/icon-512.png',
+              src: '/icons/kistos-pig-farm-512.png',
               sizes: '512x512',
               type: 'image/png',
             },
             {
-              src: '/icons/icon-maskable-512.png',
+              src: '/icons/kistos-pig-farm-512.png',
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'maskable',
+              purpose: 'any maskable',
             },
           ],
         },

@@ -26,10 +26,14 @@ export const AuthModal: React.FC = () => {
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden my-8">
         {/* Top Header */}
         <div className="p-6 bg-stone-900 text-white text-center border-b border-stone-800">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-600 mx-auto flex items-center justify-center text-2xl shadow-md mb-3">
-            🐖
+          <div className="w-32 h-32 rounded-2xl bg-white mx-auto p-1 shadow-md mb-3">
+            <img
+              src="/kistos-pig-farm.png"
+              alt="Kisto's Pig Farm"
+              className="w-full h-full object-contain rounded-xl"
+            />
           </div>
-          <h2 className="text-xl font-bold tracking-tight">Sunland Swine & Livestock</h2>
+          <h2 className="text-xl font-bold tracking-tight">Kisto&apos;s Pig Farm</h2>
           <p className="text-xs text-stone-400 mt-1">Farm Operations & Management Portal</p>
 
           <div className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full bg-stone-800 border border-stone-700 text-[11px] text-stone-300">
